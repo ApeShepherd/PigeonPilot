@@ -1,12 +1,23 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.egg
 .eggs/
 dist/
 build/
 .venv/
 venv/
 .env
+
+# Test / type / lint caches
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -18,6 +29,7 @@ venv/
 
 # OS
 .DS_Store
+Thumbs.db
 
 # Local data / outputs
 data/

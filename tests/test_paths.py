@@ -1,27 +1,22 @@
-"""Unit tests for path geometry, curriculum, and epoch shuffling."""
+"""Unit tests for path geometry and single-level generation."""
 
 from __future__ import annotations
-
-from collections import Counter
 
 import numpy as np
 
 from pigeonpilot.paths import (
-    DIFFICULTIES,
-    DIFFICULTY_SPECS,
     STYLES,
     Segment,
-    epoch_order,
-    generate_curriculum_dataset,
-    generate_dataset,
     generate_level,
     home_vector,
     displacement_vector,
-    iter_training_indices,
     snap_heading,
-    split_dataset,
-    summarize_dataset,
 )
+
+
+def _circ_diff_deg(a: float, b: float) -> float:
+    """Signed shortest turn from heading a to b in (-180, 180]."""
+    return ((b - a + 180.0) % 360.0) - 180.0
 
 
 def test_style_names():
@@ -39,80 +34,87 @@ def test_single_segment_east_home_vector():
     np.testing.assert_allclose(home_vector(segments), [-1, 0], atol=1e-9)
 
 
+def test_generated_level_home_xy_is_negation_of_end_xy():
+    """generate_level stores home/end once; home_xy == -end_xy."""
+    level = generate_level(style="turning", n_segments=4, seed=7, turning_scale="gentle")
+    assert np.allclose(level.home_xy, (-level.end_xy[0], -level.end_xy[1]))
+    end = displacement_vector(level.segments)
+    np.testing.assert_allclose(level.end_xy, end, atol=1e-9)
+    np.testing.assert_allclose(level.home_xy, -end, atol=1e-9)
+
+
 def test_linear_is_truly_straight():
     level = generate_level(style="linear", n_segments=3, seed=0)
     assert len({seg.heading_deg for seg in level.segments}) == 1
 
 
-def test_curriculum_progressive_styles_and_counts():
-    data = generate_curriculum_dataset(seed=42)
-    expected = sum(sum(DIFFICULTY_SPECS[d]["counts"].values()) for d in DIFFICULTIES)
-    assert len(data) == expected == 150
-
-    summary = summarize_dataset(data)
-    assert summary["by_difficulty"] == {"easy": 60, "medium": 60, "hard": 30}
-
-    easy = {lv.style for lv in data if lv.difficulty == "easy"}
-    medium = {lv.style for lv in data if lv.difficulty == "medium"}
-    hard = {lv.style for lv in data if lv.difficulty == "hard"}
-    assert easy == {"linear", "turning"}
-    assert medium == {"turning", "curved"}
-    assert hard == {"turning", "curved"}
-    assert "linear" not in medium | hard
-
-
-def test_hard_curved_is_long_arc():
-    data = generate_curriculum_dataset(seed=0)
-    hard_curved = [lv for lv in data if lv.difficulty == "hard" and lv.style == "curved"]
-    assert hard_curved
-    assert all(6 <= len(lv.segments) <= 8 for lv in hard_curved)
-
-
-def test_split_and_schedule():
-    from pigeonpilot.paths import iter_train_schedule
-
-    data = generate_curriculum_dataset(seed=1)
-    train, test = split_dataset(data, train_frac=0.8, seed=0)
-    assert len(train) + len(test) == len(data)
-    schedule = list(
-        iter_train_schedule(
-            train,
-            mode="curriculum",
-            epochs_per_difficulty={"easy": 1, "medium": 1, "hard": 1},
-            seed=0,
+def test_turning_gentle_jumps_are_small():
+    """Gentle turns use 2–4 bin jumps → 20°–40° on a 36-bin grid."""
+    heading_bins = 36
+    allowed = {20.0, 30.0, 40.0}
+    for seed in range(40):
+        level = generate_level(
+            style="turning",
+            n_segments=5,
+            seed=seed,
+            heading_bins=heading_bins,
+            turning_scale="gentle",
         )
-    )
-    phases = [p for p, _, _, _ in schedule]
-    assert phases == sorted(phases, key=lambda p: {"easy": 0, "medium": 1, "hard": 2}[p])
+        headings = [seg.heading_deg for seg in level.segments]
+        for prev, cur in zip(headings, headings[1:]):
+            jump = abs(_circ_diff_deg(prev, cur))
+            assert jump in allowed
+            assert jump > 0.0
 
 
-def test_epoch_order_is_permutation():
-    order = epoch_order(10, epoch=3, seed=0)
-    assert sorted(order.tolist()) == list(range(10))
-    counts = Counter(idx for _, idx in iter_training_indices(5, n_epochs=20, seed=0))
-    assert all(counts[i] == 20 for i in range(5))
+def test_turning_sharp_jumps_are_large():
+    """Sharp turns use ~90°–120° jumps on a 36-bin grid."""
+    heading_bins = 36
+    allowed = {90.0, 120.0}
+    for seed in range(40):
+        level = generate_level(
+            style="turning",
+            n_segments=5,
+            seed=seed,
+            heading_bins=heading_bins,
+            turning_scale="sharp",
+        )
+        headings = [seg.heading_deg for seg in level.segments]
+        for prev, cur in zip(headings, headings[1:]):
+            jump = abs(_circ_diff_deg(prev, cur))
+            assert jump in allowed
+            assert jump > 0.0
 
 
-def test_shared_limits_are_square():
-    from pigeonpilot.viz import compute_xy_limits
+def test_curved_mild_oscillates_not_straight():
+    """Mild curved paths are not a single constant heading."""
+    heading_bins = 36
+    for seed in range(20):
+        level = generate_level(
+            style="curved",
+            n_segments=6,
+            seed=seed,
+            curved_mode="mild",
+            heading_bins=heading_bins,
+        )
+        headings = [seg.heading_deg for seg in level.segments]
+        assert len(set(headings)) >= 2
+        assert all(snap_heading(h, heading_bins) == h for h in headings)
 
-    data = generate_curriculum_dataset(seed=2)
-    xlim, ylim = compute_xy_limits(data)
-    assert xlim == ylim
-    assert abs(xlim[0] + xlim[1]) < 1e-9
 
-
-def test_grid_zooms_to_given_levels():
-    import matplotlib
-
-    matplotlib.use("Agg")
-    from pigeonpilot.viz import plot_levels_grid, compute_xy_limits
-
-    data = generate_curriculum_dataset(seed=42)
-    easy = [lv for lv in data if lv.difficulty == "easy"]
-    assert compute_xy_limits(data)[0][1] > 6.0
-
-    fig = plot_levels_grid(easy, title="easy")
-    ax = next(a for a in fig.axes if a.has_data())
-    assert ax.get_xlim()[1] < 3.0
-    assert ax.get_xlim() == ax.get_ylim()
+def test_curved_arc_sweeps_monotonically():
+    """Arc curved paths keep a consistent turn direction between steps."""
+    for seed in range(20):
+        level = generate_level(
+            style="curved",
+            n_segments=8,
+            seed=seed,
+            curved_mode="arc",
+            heading_bins=36,
+        )
+        headings = [seg.heading_deg for seg in level.segments]
+        diffs = [_circ_diff_deg(a, b) for a, b in zip(headings, headings[1:])]
+        nonzero = [d for d in diffs if abs(d) > 1e-9]
+        assert nonzero
+        signs = {np.sign(d) for d in nonzero}
+        assert len(signs) == 1
