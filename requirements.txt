@@ -1,0 +1,6 @@
+# Install this package in editable mode with all dependencies:
+#   pip install -e ".[snn,dev]"
+#
+# Core dependencies (installed automatically): numpy, matplotlib
+# Extra "snn"  -> torch, bindsnet, scikit-learn
+# Extra "dev"  -> pytest, jupyter, ipykernel

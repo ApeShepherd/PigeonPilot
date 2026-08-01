@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pigeonpilot"
+version = "0.1.0"
+description = "Path-integration curriculum and viz for a spiking reservoir (PigeonPilot)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+snn = [
+    "torch>=2.0",
+    "bindsnet>=0.3",
+    "scikit-learn>=1.3",
+]
+dev = [
+    "pytest>=7.0",
+    "jupyter>=1.0",
+    "ipykernel>=6.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pigeonpilot*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

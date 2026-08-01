@@ -1,1 +1,43 @@
-.idea
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# Test / type / lint caches
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local data / outputs
+data/
+outputs/
+*.pkl
+*.pt
+*.npy
+figures/
+runs/
+logs/
+*.log
