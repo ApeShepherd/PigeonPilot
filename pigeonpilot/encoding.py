@@ -15,7 +15,7 @@ North**:
 
 Examples (36 bins): face North (heading ``0°``) → bin ``0``;
 East (``90°``) → bin ``27``; South (``180°``) → bin ``18``;
-West (``270°``; reached by a 90° left turn from North) → bin ``9``.
+West (``270°``) → bin ``9``.
 
 Constant velocity: firing **duration** ∝ distance. With ``velocity=1`` and
 ``dt=1``, distance 10 North → 10 timesteps with only bin ``0`` = ``1.0``.

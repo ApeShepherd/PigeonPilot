@@ -27,7 +27,7 @@ def test_heading_to_bin_north_aligned_body_ring():
     assert heading_to_bin(0.0) == 0  # face North (heading 0°) → bin 0 points North
     assert heading_to_bin(90.0) == 27  # face East (heading 90°) → bin 27 points North
     assert heading_to_bin(180.0) == 18  # face South (heading 180°) → bin 18 points North
-    assert heading_to_bin(270.0) == 9  # face West (heading 270°) → bin 9 points North #
+    assert heading_to_bin(270.0) == 9  # face West (heading 270°) → bin 9 points North
 
 
 def test_segment_n_steps_defaults_map_distance_one_to_one():
@@ -51,6 +51,14 @@ def test_west_activates_bin_nine():
     spikes = encode_segments(segments)
     assert spikes.shape == (4, 36)
     np.testing.assert_array_equal(spikes.sum(axis=0), np.eye(36)[9] * 4)
+
+
+def test_south_activates_bin_eighteen():
+    """Heading 180° = South → body neuron 18 points North and receives spikes."""
+    segments = (Segment(heading_deg=180.0, distance=4.0),)
+    spikes = encode_segments(segments)
+    assert spikes.shape == (4, 36)
+    np.testing.assert_array_equal(spikes.sum(axis=0), np.eye(36)[18] * 4)
 
 
 def test_north_then_east_concatenates_bins():
