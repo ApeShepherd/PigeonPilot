@@ -11,6 +11,7 @@ from pigeonpilot.paths import (
     home_vector,
     displacement_vector,
     snap_heading,
+    trajectory_points,
 )
 
 
@@ -28,8 +29,21 @@ def test_snap_heading_36_bins():
     assert snap_heading(6, 36) == 10.0
 
 
-def test_single_segment_east_home_vector():
+def test_single_segment_north_is_plus_y():
+    """Compass: 0° = North → +y."""
     segments = (Segment(heading_deg=0.0, distance=1.0),)
+    np.testing.assert_allclose(displacement_vector(segments), [0, 1], atol=1e-9)
+    np.testing.assert_allclose(home_vector(segments), [0, -1], atol=1e-9)
+
+
+def test_ten_steps_north_y_is_plus_ten():
+    segments = (Segment(heading_deg=0.0, distance=10.0),)
+    np.testing.assert_allclose(displacement_vector(segments), [0.0, 10.0], atol=1e-9)
+
+
+def test_single_segment_east_is_plus_x():
+    """Compass: 90° = East → +x."""
+    segments = (Segment(heading_deg=90.0, distance=1.0),)
     np.testing.assert_allclose(displacement_vector(segments), [1, 0], atol=1e-9)
     np.testing.assert_allclose(home_vector(segments), [-1, 0], atol=1e-9)
 
@@ -118,3 +132,23 @@ def test_curved_arc_sweeps_monotonically():
         assert nonzero
         signs = {np.sign(d) for d in nonzero}
         assert len(signs) == 1
+
+
+def test_trajectory_points_starts_at_home():
+    segments = (
+        Segment(heading_deg=0.0, distance=1.0),
+        Segment(heading_deg=90.0, distance=2.0),
+    )
+    pts = trajectory_points(segments)
+    assert pts.shape == (3, 2)
+    np.testing.assert_allclose(pts[0], [0.0, 0.0])
+    np.testing.assert_allclose(pts[-1], displacement_vector(segments))
+
+
+def test_generate_level_rejects_bad_args():
+    import pytest
+
+    with pytest.raises(ValueError, match="Unknown style"):
+        generate_level(style="diagonal")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="n_segments"):
+        generate_level(n_segments=0)

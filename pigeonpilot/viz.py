@@ -1,8 +1,13 @@
 """
 Plot helpers for PigeonPilot — layered Matplotlib rendering.
 
-`paths` computes geometry; `viz` draws it in strict z-order layers.
-Grids always zoom to the levels they receive: square axes ±max(|x|,|y|) around home.
+``paths`` computes geometry; ``viz`` draws it in strict z-order layers.
+``encoding`` supplies spike matrices / plans for raster and ring figures.
+Grids always zoom to the levels they receive: square axes ±max(|x|,|y|)
+around home.
+
+One-way deps: ``viz`` → ``paths`` / ``encoding`` / ``curriculum``;
+never the reverse.
 """
 
 from __future__ import annotations
@@ -11,12 +16,16 @@ from typing import Optional, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import colormaps
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from .curriculum import STYLE_LABELS
+from .encoding import SpikeBlock, encode_level, heading_to_bin, plan_encoding
 from .paths import (
+    DEFAULT_HEADING_BINS,
     DIFFICULTIES,
+    FULL_CIRCLE_DEG,
     STYLES,
     Level,
     Segment,
@@ -71,7 +80,20 @@ def compute_xy_limits(
     levels: Sequence[Level | Sequence[Segment]],
     padding: float = 0.03,
 ) -> tuple[tuple[float, float], tuple[float, float]]:
-    """Square window centered on home: both axes use (-half, +half)."""
+    """Square window centered on home: both axes use ``(-half, +half)``.
+
+    Parameters
+    ----------
+    levels :
+        One or more levels / segment sequences whose trajectories define the zoom.
+    padding :
+        Relative margin beyond ``max(|x|, |y|)``.
+
+    Returns
+    -------
+    xlim, ylim : tuple of float
+        Identical square limits.
+    """
     pts = [np.zeros(2)]
     for item in levels:
         segments = item.segments if isinstance(item, Level) else item
@@ -255,11 +277,35 @@ def plot_level(
     turn_size: float = SIZES["turn"],
     padding: float = 0.03,
 ) -> Axes:
-    """
-    Composite one level: trajectory → markers → vectors → chrome → legend.
+    """Composite one level: trajectory → markers → vectors → chrome → legend.
 
-    ``show_markers`` / ``show_vectors`` are the primary toggles.
-    ``show_displacement`` / ``show_home_vector`` refine vectors when enabled.
+    Parameters
+    ----------
+    level :
+        A ``Level`` or raw segment sequence.
+    ax :
+        Target axes; created if omitted.
+    title :
+        Override for the axes title (default from level metadata).
+    show_markers :
+        Draw home / release / turn markers.
+    show_vectors :
+        Master switch for displacement / home-vector quivers.
+    show_displacement, show_home_vector :
+        Refine which vectors appear when ``show_vectors`` is True.
+    xlim, ylim :
+        Fixed axis limits; auto square zoom if omitted.
+    show_legend :
+        Draw a de-duplicated legend.
+    path_lw, home_size, release_size, turn_size :
+        Artist sizes (defaults from ``SIZES``).
+    padding :
+        Relative margin when auto-computing limits.
+
+    Returns
+    -------
+    Axes
+        The axes that received the artists.
     """
     created_fig = ax is None
     if ax is None:
@@ -310,10 +356,36 @@ def plot_levels_grid(
     title: Optional[str] = None,
     padding: float = 0.03,
 ) -> Figure:
-    """
-    Grid grouped by trajectory family (rows).
+    """Grid grouped by trajectory family (rows).
 
-    Zoom is always derived from `levels` (square ±half around home).
+    Zoom is always derived from ``levels`` (square ±half around home).
+
+    Parameters
+    ----------
+    levels :
+        Levels to show (order within each style preserved).
+    max_per_style :
+        Optional cap per trajectory family.
+    max_cols :
+        Panels per row (must be ``>= 1``).
+    panel_inches :
+        Approximate width/height of one panel when ``figsize`` is omitted.
+    figsize :
+        Optional ``(width, height)`` in inches.
+    title :
+        Figure suptitle prefix.
+    padding :
+        Relative margin for shared limits.
+
+    Returns
+    -------
+    Figure
+        Matplotlib figure with the grid.
+
+    Raises
+    ------
+    ValueError
+        If ``max_cols < 1``.
     """
     if max_cols < 1:
         raise ValueError("max_cols must be >= 1")
@@ -393,7 +465,24 @@ def plot_release_points(
     xlim: Optional[tuple[float, float]] = None,
     ylim: Optional[tuple[float, float]] = None,
 ) -> Axes:
-    """Release-point map; limits from data first, then chrome."""
+    """Release-point scatter colored by difficulty.
+
+    Parameters
+    ----------
+    levels :
+        Levels whose ``end_xy`` points are plotted.
+    ax :
+        Target axes; created if omitted.
+    title :
+        Axes title.
+    xlim, ylim :
+        Fixed limits; auto square zoom if omitted.
+
+    Returns
+    -------
+    Axes
+        The axes that received the artists.
+    """
     if ax is None:
         _, ax = plt.subplots(figsize=(6, 6))
 
@@ -434,3 +523,430 @@ def plot_release_points(
     _draw_chrome(ax, limits, title)
     _finalize_legend(ax)
     return ax
+
+
+# ---------------------------------------------------------------------------
+# Encoding views (path ↔ spike raster)
+# ---------------------------------------------------------------------------
+
+def _segment_colors(n: int) -> list[tuple]:
+    """Distinct colors for path segments / matching raster ticks."""
+    if n <= 0:
+        return []
+    cmap = colormaps["tab10" if n <= 10 else "tab20"]
+    return [cmap(i % cmap.N) for i in range(n)]
+
+
+def _cardinal_bin_indices(heading_bins: int = DEFAULT_HEADING_BINS) -> tuple[int, ...]:
+    """Quarter-circle body-bin indices (beak / right / tail / left when facing North)."""
+    q = heading_bins // 4
+    return (0, q, 2 * q, 3 * q)
+
+
+def plot_spike_raster(
+    spikes: np.ndarray,
+    ax: Optional[Axes] = None,
+    *,
+    plan: Optional[Sequence[SpikeBlock]] = None,
+    title: str = "Spike raster (North-pointing body bin)",
+    t_max: Optional[float] = None,
+) -> Axes:
+    """
+    Black spike ticks (tutorial-style), optional colored segment bands.
+
+    Parameters
+    ----------
+    spikes :
+        Shape ``(T, n_bins)``.
+    ax :
+        Target axes; created if omitted.
+    plan :
+        Optional ``SpikeBlock`` sequence from ``plan_encoding`` — draws
+        vertical segment boundaries and colors ticks by segment.
+    title :
+        Axes title.
+    t_max :
+        Shared right edge for the time axis (exclusive-style length).
+        Use the longest trial's ``T`` so short routes stay visually
+        comparable. Default: ``spikes.shape[0]``.
+
+    Returns
+    -------
+    Axes
+        The axes that received the raster.
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(10, 3.2))
+
+    times, neurons = np.where(spikes > 0)
+    if plan is not None and len(plan) > 0:
+        colors = _segment_colors(len(plan))
+        for block, color in zip(plan, colors):
+            mask = (times >= block.start) & (times < block.end)
+            ax.scatter(
+                times[mask],
+                neurons[mask],
+                s=28,
+                c=[color],
+                marker="|",
+                linewidths=1.6,
+                zorder=3,
+            )
+            if block.start > 0:
+                ax.axvline(block.start - 0.5, color="0.65", ls=":", lw=0.9, zorder=1)
+    else:
+        ax.scatter(times, neurons, s=22, c="black", marker="|", linewidths=1.4, zorder=3)
+
+    n_bins = spikes.shape[1]
+    right = float(t_max) if t_max is not None else float(spikes.shape[0])
+    ax.set_xlim(-0.5, max(right - 0.5, 0.5))
+    ax.set_ylim(-1.0, n_bins)
+    ax.set_xlabel("time step")
+    ax.set_ylabel("body bin (0 = beak)")
+    ax.set_title(title)
+    if n_bins == DEFAULT_HEADING_BINS:
+        ax.set_yticks([*_cardinal_bin_indices(n_bins), n_bins - 1])
+    else:
+        ax.set_yticks([0, n_bins - 1])
+    ax.grid(True, axis="y", alpha=0.25, zorder=0)
+    return ax
+
+
+def plot_level_encoding(
+    level: Level,
+    *,
+    velocity: float = 1.0,
+    dt: float = 0.25,
+    figsize: tuple[float, float] = (12.5, 4.6),
+    title: Optional[str] = None,
+    t_max: Optional[float] = None,
+) -> Figure:
+    """Side-by-side: displacement path (segments colored) | spike raster.
+
+    Parameters
+    ----------
+    level :
+        Displacement trial to encode and draw.
+    velocity :
+        Constant speed forwarded to ``plan_encoding`` / ``encode_level``.
+    dt :
+        Simulation timestep. Defaults to ``0.25`` so duration bars are
+        readable in demos; encoding unit tests use ``dt=1.0``.
+    figsize :
+        Figure size in inches.
+    title :
+        Optional override for the path panel title.
+    t_max :
+        Shared raster x-axis length (pass the longer trial's ``T`` when
+        comparing levels).
+
+    Returns
+    -------
+    Figure
+        Two-panel figure (path | raster).
+    """
+    segments = level.segments
+    plan = plan_encoding(segments, velocity=velocity, dt=dt)
+    spikes = encode_level(level, velocity=velocity, dt=dt)
+    colors = _segment_colors(len(segments))
+    points = trajectory_points(segments)
+
+    fig, (ax_path, ax_raster) = plt.subplots(
+        1,
+        2,
+        figsize=figsize,
+        gridspec_kw={"width_ratios": [1.0, 1.35]},
+    )
+
+    for i, color in enumerate(colors):
+        p0, p1 = points[i], points[i + 1]
+        ax_path.plot(
+            [p0[0], p1[0]],
+            [p0[1], p1[1]],
+            color=color,
+            lw=SIZES["path_lw"],
+            solid_capstyle="round",
+            zorder=Z_ORDER["trajectory"],
+        )
+    ax_path.scatter(
+        [0.0],
+        [0.0],
+        marker="*",
+        s=SIZES["home"],
+        c=COLORS["home"],
+        zorder=Z_ORDER["markers"],
+        label="home",
+    )
+    ax_path.scatter(
+        [points[-1, 0]],
+        [points[-1, 1]],
+        s=SIZES["release"],
+        c=COLORS["release"],
+        zorder=Z_ORDER["markers"],
+        label="release",
+    )
+    limits = compute_xy_limits([level])
+    head = title or _default_title(level)
+    _draw_chrome(ax_path, limits, f"{head}\npath (color = segment)")
+    _finalize_legend(ax_path)
+
+    plot_spike_raster(
+        spikes,
+        ax=ax_raster,
+        plan=plan,
+        t_max=t_max,
+        title=f"rate code  |  dt={dt:g}, v={velocity:g}  |  shape {tuple(spikes.shape)}",
+    )
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Body-ring / compass teaching figures
+# ---------------------------------------------------------------------------
+
+def _as_compass_polar(ax: Axes) -> None:
+    """North up, angles clockwise (navigation convention)."""
+    ax.set_theta_zero_location("N")
+    ax.set_theta_direction(-1)
+    # Outer spine beyond bin-index labels (r≈0.93) so 0/9/18/27 are not clipped;
+    # tick ``pad`` still keeps N/E/S/W close outside (avoids \"EW\" between panels).
+    ax.set_ylim(0, 1.25)
+    ax.set_yticks([])
+    ax.set_xticks(np.deg2rad([0, 90, 180, 270]))
+    ax.set_xticklabels(["N", "E", "S", "W"])
+    ax.tick_params(axis="x", labelsize=8, pad=1)
+
+
+def _bin_world_deg(
+    heading_deg: float,
+    bin_idx: int,
+    heading_bins: int = DEFAULT_HEADING_BINS,
+) -> float:
+    """World compass angle of a body-fixed bin when the beak faces ``heading_deg``."""
+    step = FULL_CIRCLE_DEG / heading_bins
+    return (heading_deg + bin_idx * step) % FULL_CIRCLE_DEG
+
+
+def _draw_body_ring_world(
+    ax: Axes,
+    heading_deg: float,
+    *,
+    active_bin: Optional[int] = None,
+    highlight_color: str = "crimson",
+    heading_bins: int = DEFAULT_HEADING_BINS,
+    show_beak: bool = True,
+    dim: float = 0.35,
+) -> None:
+    """World-frame ring: geographic N fixed at top; body bins rotate with heading.
+
+    The North-pointing neuron sits at world angle 0° and is highlighted when
+    ``active_bin`` is set.
+    """
+    _as_compass_polar(ax)
+    radii = np.full(heading_bins, 0.82)
+    thetas = np.deg2rad(
+        [_bin_world_deg(heading_deg, i, heading_bins) for i in range(heading_bins)]
+    )
+
+    # faint ring + all bins
+    ax.plot(np.linspace(0, 2 * np.pi, 200), np.full(200, 0.82), color="0.85", lw=1.0, zorder=1)
+    ax.scatter(thetas, radii, s=18, c="0.55", alpha=dim, zorder=2)
+
+    # Cardinal body-bin dots slightly darker so labels map clearly
+    cardinal_bins = _cardinal_bin_indices(heading_bins)
+    card_theta = np.deg2rad(
+        [_bin_world_deg(heading_deg, b, heading_bins) for b in cardinal_bins]
+    )
+    ax.scatter(
+        card_theta,
+        np.full(len(cardinal_bins), 0.82),
+        s=28,
+        c="0.28",
+        alpha=min(1.0, dim + 0.45),
+        zorder=3,
+        edgecolors="0.15",
+        linewidths=0.4,
+    )
+
+    for b in cardinal_bins:
+        ang = np.deg2rad(_bin_world_deg(heading_deg, b, heading_bins))
+        ax.text(
+            ang,
+            1.05,
+            str(b),
+            ha="center",
+            va="center",
+            fontsize=7,
+            color="0.35",
+            zorder=4,
+        )
+
+    if active_bin is not None:
+        ang = np.deg2rad(_bin_world_deg(heading_deg, active_bin, heading_bins))
+        ax.scatter([ang], [0.82], s=110, c=[highlight_color], zorder=5, edgecolors="k", lw=0.6)
+        ax.annotate(
+            f"bin {active_bin}",
+            xy=(ang, 0.82),
+            xytext=(ang, 0.45),
+            textcoords="data",
+            fontsize=8,
+            ha="center",
+            color=highlight_color,
+            arrowprops=dict(arrowstyle="-", color=highlight_color, lw=0.8),
+            zorder=6,
+        )
+        # North ray (stops short of the outer spine)
+        ax.plot([0, 0], [0.15, 1.12], color="0.25", ls="--", lw=0.8, zorder=1)
+
+    if show_beak:
+        beak = np.deg2rad(heading_deg % FULL_CIRCLE_DEG)
+        ax.annotate(
+            "",
+            xy=(beak, 0.72),
+            xytext=(beak, 0.12),
+            arrowprops=dict(arrowstyle="->", color="black", lw=1.6),
+            zorder=4,
+        )
+        ax.text(beak, 0.05, "beak", ha="center", va="top", fontsize=7)
+
+
+def plot_body_ring_anatomy(figsize: tuple[float, float] = (11.5, 3.8)) -> Figure:
+    """Three-panel legend: world compass · body bins · worked example (face West).
+
+    Didactic order: where is North → how bins sit on the bird → which bin fires.
+
+    Parameters
+    ----------
+    figsize :
+        Figure size in inches.
+
+    Returns
+    -------
+    Figure
+        Three polar panels.
+    """
+    fig, axes = plt.subplots(
+        1,
+        3,
+        figsize=figsize,
+        subplot_kw={"projection": "polar"},
+        gridspec_kw={"wspace": 0.55},
+    )
+
+    # (1) Geographic compass only
+    ax0 = axes[0]
+    _as_compass_polar(ax0)
+    ax0.plot(np.linspace(0, 2 * np.pi, 200), np.full(200, 0.75), color="0.8", lw=1.0)
+    for ang, lab in ((0, "N"), (90, "E"), (180, "S"), (270, "W")):
+        ax0.annotate(
+            "",
+            xy=(np.deg2rad(ang), 0.75),
+            xytext=(np.deg2rad(ang), 0.15),
+            arrowprops=dict(arrowstyle="->", color="black", lw=1.2),
+        )
+    ax0.set_title("1 · Geographic North is fixed", fontsize=10, pad=12)
+
+    # (2) Body ring facing North: bin 0 at N, all 36 bins visible
+    ax1 = axes[1]
+    _draw_body_ring_world(
+        ax1,
+        heading_deg=0.0,
+        active_bin=0,
+        highlight_color=COLORS["home"],
+        dim=0.55,
+    )
+    ax1.set_title("2 · Face North → bin 0 at N\n(beak = bin 0)", fontsize=10, pad=12)
+
+    # (3) Face West: body rotated 90° left; bin 9 sits at North
+    ax2 = axes[2]
+    west = 270.0
+    _draw_body_ring_world(
+        ax2,
+        heading_deg=west,
+        active_bin=heading_to_bin(west),
+        highlight_color="crimson",
+        dim=0.4,
+    )
+    ax2.set_title("3 · Face West (90° left)\n→ bin 9 at North fires", fontsize=10, pad=12)
+
+    step = FULL_CIRCLE_DEG / DEFAULT_HEADING_BINS
+    fig.suptitle(
+        f"Body ring ({DEFAULT_HEADING_BINS} × {step:g}°) · "
+        "spikes = neuron currently pointing at geographic North",
+        fontsize=11,
+        y=1.05,
+    )
+    return fig
+
+
+def plot_level_ring_frames(
+    level: Level,
+    *,
+    velocity: float = 1.0,
+    dt: float = 0.25,
+    panel_inches: float = 2.35,
+    canvas_slots: int = 7,
+) -> Figure:
+    """One polar frame per segment: fixed North, rotating body, active bin lit.
+
+    Segment colors match ``plot_level_encoding`` / the spike raster.
+    Short routes are centered on a fixed-width canvas (padding made even
+    so short demos are not left-biased).
+
+    Parameters
+    ----------
+    level :
+        Displacement trial to animate frame-by-frame.
+    velocity :
+        Constant speed forwarded to ``plan_encoding``.
+    dt :
+        Simulation timestep (demo default ``0.25``; encoding tests use ``1.0``).
+    panel_inches :
+        Approximate width of one polar panel.
+    canvas_slots :
+        Minimum number of column slots (short levels are centered).
+
+    Returns
+    -------
+    Figure
+        One polar axes per segment (plus empty margin slots).
+    """
+    from matplotlib.gridspec import GridSpec
+
+    plan = plan_encoding(level.segments, velocity=velocity, dt=dt)
+    colors = _segment_colors(len(plan))
+    n = len(plan)
+    slots = max(canvas_slots, n)
+    # Even leftover columns → equal left/right margin (fixes slight left bias).
+    if (slots - n) % 2 == 1:
+        slots += 1
+    start = (slots - n) // 2
+
+    fig = plt.figure(figsize=(panel_inches * slots, panel_inches + 0.55))
+    gs = GridSpec(1, slots, figure=fig, wspace=0.55)
+
+    for i, (block, color) in enumerate(zip(plan, colors)):
+        ax = fig.add_subplot(gs[0, start + i], projection="polar")
+        _draw_body_ring_world(
+            ax,
+            heading_deg=block.heading_deg,
+            active_bin=block.bin_idx,
+            highlight_color=color,
+            dim=0.35,
+        )
+        ax.set_title(
+            f"seg {i}\nH={block.heading_deg:.0f}° → bin {block.bin_idx}",
+            fontsize=9,
+            pad=10,
+            color=color,
+        )
+
+    family = STYLE_LABELS.get(level.style, level.style)
+    fig.suptitle(
+        f"Level #{level.level_id} · {level.difficulty} · {family}  "
+        f"| North fixed · body turns · highlighted bin fires",
+        fontsize=11,
+        y=1.02,
+    )
+    return fig

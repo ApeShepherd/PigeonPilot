@@ -11,7 +11,16 @@ from matplotlib.quiver import Quiver
 
 from pigeonpilot.curriculum import generate_curriculum_dataset
 from pigeonpilot.paths import generate_level
-from pigeonpilot.viz import compute_xy_limits, plot_level, plot_levels_grid
+from pigeonpilot.viz import (
+    compute_xy_limits,
+    plot_body_ring_anatomy,
+    plot_level,
+    plot_level_encoding,
+    plot_level_ring_frames,
+    plot_levels_grid,
+    plot_release_points,
+    plot_spike_raster,
+)
 
 
 def test_shared_limits_are_square():
@@ -75,3 +84,66 @@ def test_plot_level_show_vectors_without_markers():
     assert "home vector" in labels
     assert "home (start)" not in labels
     plt.close(fig)
+
+
+def test_plot_level_encoding_side_by_side():
+    data = generate_curriculum_dataset(seed=42)
+    level = next(lv for lv in data if lv.level_id == 142)
+    fig = plot_level_encoding(level, dt=0.25)
+    assert len(fig.axes) == 2
+    plt.close(fig)
+
+
+def test_plot_spike_raster_smoke():
+    from pigeonpilot.encoding import encode_segments, plan_encoding
+    from pigeonpilot.paths import Segment
+
+    segments = (
+        Segment(heading_deg=0.0, distance=3.0),
+        Segment(heading_deg=270.0, distance=2.0),
+    )
+    spikes = encode_segments(segments, dt=1.0)
+    plan = plan_encoding(segments, dt=1.0)
+    fig, ax = plt.subplots()
+    plot_spike_raster(spikes, ax=ax, plan=plan)
+    assert ax.get_ylabel()
+    plt.close(fig)
+
+
+def test_plot_body_ring_anatomy_smoke():
+    fig = plot_body_ring_anatomy()
+    assert len(fig.axes) == 3
+    plt.close(fig)
+
+
+def test_plot_level_ring_frames_smoke():
+    data = generate_curriculum_dataset(seed=42)
+    level = next(lv for lv in data if lv.level_id == 34)
+    fig = plot_level_ring_frames(level, dt=0.25)
+    assert len(fig.axes) == len(level.segments)
+    plt.close(fig)
+
+
+def test_plot_release_points_smoke():
+    data = generate_curriculum_dataset(seed=42)[:20]
+    fig, ax = plt.subplots()
+    plot_release_points(data, ax=ax)
+    assert ax.get_xlim() == ax.get_ylim()
+    plt.close(fig)
+
+
+def test_plot_levels_grid_rejects_bad_max_cols():
+    import pytest
+
+    data = generate_curriculum_dataset(seed=0)[:3]
+    with pytest.raises(ValueError, match="max_cols"):
+        plot_levels_grid(data, max_cols=0)
+
+
+def test_package_exports_public_api():
+    import pigeonpilot as pp
+
+    assert callable(pp.plot_body_ring_anatomy)
+    assert callable(pp.encode_level)
+    assert callable(pp.snap_heading)
+    assert callable(pp.plan_encoding)

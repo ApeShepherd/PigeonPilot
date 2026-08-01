@@ -9,6 +9,30 @@ Meet Captain Pigeon — the fearless bird who flies this project.
 > Does **STDP** in a recurrent LIF reservoir improve **path integration**
 > compared to a **fixed** (non-plastic) reservoir?
 
+## Heading convention (frozen)
+
+Compass / navigation degrees — **not** the mathematical polar angle:
+
+| Degrees | Direction | Axis |
+|--------:|-----------|------|
+| `0°` | North | `+y` |
+| `90°` | East | `+x` |
+| `180°` | South | `-y` |
+| `270°` | West | `-x` |
+
+Unit step: `(dx, dy) = (sin(heading), cos(heading)) * distance`.  
+Default resolution: **36 bins → 10°**. A *bin* is one direction bucket (= one input neuron). Indices are **0-based** (Python): bin `0` = first neuron / “neuron 1” in everyday talk.
+
+## Seeds (reproducibility)
+
+| API | Default seed | Notes |
+|-----|-------------:|-------|
+| `generate_curriculum_dataset` | `42` | Builds the full easy→hard dataset |
+| `generate_level` | `0` | Always an `int` (never `None`) |
+| `split_dataset` | `0` | Stratified train/test shuffle |
+
+Always pass an explicit `seed` in experiments so paths stay debuggable.
+
 ## Trajectory families
 
 Display labels live in `STYLE_LABELS` (`pigeonpilot.curriculum`).
@@ -27,18 +51,33 @@ Render with `format_curriculum_table()` (also used in the notebook).
 Default curriculum size: **150** levels (`curriculum_level_count()`), then ~80/20 train/test.
 Default curriculum epochs: `DEFAULT_EPOCHS_PER_DIFFICULTY`.
 
-## Repo layout
+## Spike encoding (rate coding)
 
-Quick map for teammates: **domain** = `paths`, **curriculum / train schedule** = `curriculum`, **plots** = `viz`, **demo** = `PigeonPilot.ipynb`.
+`pigeonpilot.encoding` turns segments into a deterministic spike matrix **before** BindsNET:
+
+- Body-fixed ring: bin `0` = beak (forward); the bird always faces travel direction
+- Spikes go to the bin that currently points at **geographic North**  
+  (`heading_to_bin(H) = (-compass_bin(H)) mod 36` — e.g. face West → bin `9`)
+- Constant velocity: firing **duration** ∝ distance (`n_steps = max(1, round(distance / (v · dt)))`)
+- Output: `float32` array of shape `(T, 36)` — no Torch/BindsNET dependency
+- Demo plots: `plot_body_ring_anatomy`, `plot_level_encoding`, `plot_level_ring_frames`  
+  (notebook §2 uses levels **#34 / #42 / #142**)
+- Encoding helpers default to `dt=1.0`; viz demos often use `dt=0.25` for readable rasters
+
+## Repo layout
 
 | Path | Role |
 |------|------|
 | `pigeonpilot/paths.py` | Domain types, geometry, single-level generation |
+| `pigeonpilot/encoding.py` | Rate-coding spike trains `(T, n_bins)` |
 | `pigeonpilot/curriculum.py` | Curriculum SSOT, datasets, training schedules |
 | `pigeonpilot/viz.py` | Plotting |
 | `PigeonPilot.ipynb` | Single jury notebook |
 | `tests/` | Unit tests |
 | `pyproject.toml` | Package metadata + optional `snn` / `dev` deps |
+
+**Dependency direction (one-way):** `paths` ← `encoding` / `curriculum` / `viz`.  
+`paths` never imports the others. Public symbols are also re-exported from `pigeonpilot`.
 
 ## Setup
 
@@ -52,10 +91,15 @@ pytest -q
 jupyter notebook PigeonPilot.ipynb
 ```
 
-SNN stack (torch / bindsnet / sklearn) when you start encoding/reservoir work:
+SNN stack (torch / bindsnet / sklearn) when you start reservoir work:
 
 ```bash
 pip install -e ".[snn]"
 ```
 
 In Cursor: `Cmd+Shift+P` → **Jupyter: Restart Kernel and Run All Cells**.
+
+## Status
+
+Shipped in this package: path geometry, curriculum, rate-code encoding, and teaching plots.  
+Not yet: BindsNET/Torch reservoir, Poisson encoding, or readout.

@@ -160,3 +160,13 @@ def test_epoch_order_is_permutation():
     assert sorted(order.tolist()) == list(range(10))
     counts = Counter(idx for _, idx in iter_training_indices(5, n_epochs=20, seed=0))
     assert all(counts[i] == 20 for i in range(5))
+
+
+def test_split_dataset_rejects_bad_train_frac():
+    import pytest
+
+    data = generate_curriculum_dataset(seed=0)
+    with pytest.raises(ValueError, match="train_frac"):
+        split_dataset(data, train_frac=0.0)
+    with pytest.raises(ValueError, match="train_frac"):
+        split_dataset(data, train_frac=1.0)

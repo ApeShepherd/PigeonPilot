@@ -69,7 +69,18 @@ MIN_GROUP_SIZE_FOR_HELD_OUT_TEST = 5
 def curriculum_level_count(
     specs: dict[Difficulty, DifficultySpec] | None = None,
 ) -> int:
-    """Total levels implied by ``DIFFICULTY_SPECS`` (or an override)."""
+    """Total levels implied by ``DIFFICULTY_SPECS`` (or an override).
+
+    Parameters
+    ----------
+    specs :
+        Optional override of ``DIFFICULTY_SPECS``.
+
+    Returns
+    -------
+    int
+        Sum of all style counts across difficulties.
+    """
     specs = specs or DIFFICULTY_SPECS
     return sum(sum(cfg["counts"].values()) for cfg in specs.values())
 
@@ -92,10 +103,21 @@ def format_curriculum_table(
     specs: dict[Difficulty, DifficultySpec] | None = None,
     train_frac: float = 0.8,
 ) -> str:
-    """
-    Markdown table of the curriculum SSOT for notebooks / docs.
+    """Markdown table of the curriculum SSOT for notebooks / docs.
 
     Renders cleanly via ``IPython.display.Markdown(...)``.
+
+    Parameters
+    ----------
+    specs :
+        Optional override of ``DIFFICULTY_SPECS``.
+    train_frac :
+        Assumed train share for the footer line (display only).
+
+    Returns
+    -------
+    str
+        GitHub-flavored Markdown table plus a total / split footer.
     """
     specs = specs or DIFFICULTY_SPECS
     lines = [
@@ -121,7 +143,13 @@ def format_curriculum_table(
 
 
 def format_style_labels_table() -> str:
-    """Markdown table of trajectory-family display labels (SSOT)."""
+    """Markdown table of trajectory-family display labels (SSOT).
+
+    Returns
+    -------
+    str
+        Two-column Markdown table over ``STYLE_LABELS``.
+    """
     lines = [
         "| Name | Meaning |",
         "|------|---------|",
@@ -136,10 +164,22 @@ def generate_curriculum_dataset(
     heading_bins: int = DEFAULT_HEADING_BINS,
     specs: dict[Difficulty, DifficultySpec] | None = None,
 ) -> list[Level]:
-    """
-    Build easy → medium → hard with *different skills*, not just longer lines.
+    """Build easy → medium → hard with *different skills*, not just longer lines.
 
-    Default size comes from ``DIFFICULTY_SPECS`` (see ``curriculum_level_count``).
+    Parameters
+    ----------
+    seed :
+        Master RNG seed (default ``42``). Child seeds for each ``generate_level``
+        call are drawn from this generator so the full dataset is reproducible.
+    heading_bins :
+        Compass resolution forwarded to ``generate_level`` (``0°`` = North).
+    specs :
+        Optional override of ``DIFFICULTY_SPECS``.
+
+    Returns
+    -------
+    list of Level
+        Ordered easy → medium → hard. Size from ``curriculum_level_count``.
     """
     specs = specs or DIFFICULTY_SPECS
     rng = np.random.default_rng(seed)
@@ -150,7 +190,10 @@ def generate_curriculum_dataset(
         cfg = specs[difficulty]
         n_lo, n_hi = cfg["n_segments"]
         counts = cfg["counts"]
-        for style, n_style in counts.items():
+        for style in STYLES:
+            if style not in counts:
+                continue
+            n_style = counts[style]
             for _ in range(int(n_style)):
                 n_segments = int(rng.integers(n_lo, n_hi + 1))
                 child_seed = int(rng.integers(0, 2**31 - 1))
@@ -176,10 +219,30 @@ def split_dataset(
     train_frac: float = 0.8,
     seed: int = 0,
 ) -> tuple[list[Level], list[Level]]:
-    """
-    Stratified train/test split by (difficulty, style).
+    """Stratified train/test split by (difficulty, style).
 
-    Prevents 'it only memorized these 24 paths' when evaluating.
+    Prevents "it only memorized these 24 paths" when evaluating.
+    Groups with size ``>= MIN_GROUP_SIZE_FOR_HELD_OUT_TEST`` keep at
+    least one held-out test sample.
+
+    Parameters
+    ----------
+    levels :
+        Full curriculum (or any ``Level`` sequence).
+    train_frac :
+        Target train fraction in ``(0, 1)``.
+    seed :
+        Shuffle seed within each stratum.
+
+    Returns
+    -------
+    train, test : list of Level
+        Sorted by ``level_id`` within each split.
+
+    Raises
+    ------
+    ValueError
+        If ``train_frac`` is not in ``(0, 1)``.
     """
     if not 0.0 < train_frac < 1.0:
         raise ValueError("train_frac must be in (0, 1)")
@@ -207,7 +270,18 @@ def split_dataset(
 
 
 def summarize_dataset(levels: Sequence[Level]) -> dict[str, Any]:
-    """Counts per difficulty and style — handy for notebook prints."""
+    """Counts per difficulty and style — handy for notebook prints.
+
+    Parameters
+    ----------
+    levels :
+        Levels to summarize.
+
+    Returns
+    -------
+    dict
+        Keys ``total``, ``by_difficulty``, ``by_style``.
+    """
     summary: dict[str, Any] = {
         "total": len(levels),
         "by_difficulty": {},
@@ -221,7 +295,22 @@ def summarize_dataset(levels: Sequence[Level]) -> dict[str, Any]:
 
 
 def epoch_order(n_levels: int, epoch: int, seed: int = 0) -> np.ndarray:
-    """Permutation of level indices for one epoch (reproducible)."""
+    """Permutation of level indices for one epoch (reproducible).
+
+    Parameters
+    ----------
+    n_levels :
+        Length of the index set to shuffle.
+    epoch :
+        Epoch counter mixed into the RNG seed.
+    seed :
+        Base seed (``seed + epoch * SEED_STRIDE``).
+
+    Returns
+    -------
+    np.ndarray
+        Permutation of ``0 … n_levels-1``.
+    """
     rng = np.random.default_rng(seed + epoch * SEED_STRIDE)
     return rng.permutation(n_levels)
 
@@ -231,10 +320,24 @@ def iter_training_indices(
     n_epochs: int = 100,
     seed: int = 0,
 ) -> Iterator[tuple[int, int]]:
-    """
-    Yield (epoch, level_index) with a fresh shuffle every epoch (mixed mode).
+    """Yield ``(epoch, level_index)`` with a fresh shuffle every epoch.
 
-    After n_epochs, each index appeared exactly n_epochs times.
+    After ``n_epochs``, each index appeared exactly ``n_epochs`` times
+    (mixed-mode helper).
+
+    Parameters
+    ----------
+    n_levels :
+        Size of the train index set.
+    n_epochs :
+        Number of full passes.
+    seed :
+        Base seed forwarded to ``epoch_order``.
+
+    Yields
+    ------
+    epoch, level_index : tuple of int
+        Epoch counter and shuffled train index.
     """
     for epoch in range(n_epochs):
         for level_index in epoch_order(n_levels, epoch=epoch, seed=seed):
@@ -248,24 +351,26 @@ def iter_train_schedule(
     n_epochs_mixed: int = 100,
     seed: int = 0,
 ) -> Iterator[tuple[str, int, int, Level]]:
-    """
-    Training presentation order over the train set.
+    """Training presentation order over the train set.
 
     Parameters
     ----------
-    mode:
-        - "curriculum": train easy first, then medium, then hard
-          (each phase shuffles only that difficulty).
-        - "mixed": every epoch shuffles all train levels together.
-    epochs_per_difficulty:
+    train_levels :
+        Train split (index space for yielded ``train_index``).
+    mode :
+        ``"curriculum"``: easy → medium → hard (shuffle within phase).
+        ``"mixed"``: every epoch shuffles all train levels together.
+    epochs_per_difficulty :
         Only for curriculum mode. Defaults to ``DEFAULT_EPOCHS_PER_DIFFICULTY``.
-    n_epochs_mixed:
+    n_epochs_mixed :
         Only for mixed mode.
+    seed :
+        Base seed for epoch shuffles.
 
     Yields
     ------
-    (phase_name, phase_epoch, train_index, level)
-        train_index is the index into ``train_levels``.
+    phase_name, phase_epoch, train_index, level
+        ``train_index`` indexes into ``train_levels``.
     """
     if mode == "mixed":
         for epoch, idx in iter_training_indices(len(train_levels), n_epochs_mixed, seed):

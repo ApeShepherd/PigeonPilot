@@ -6,6 +6,21 @@ Home is the origin (0, 0). After the route, home_vector = -end_xy.
 
 Curriculum config, datasets, and training schedules live in ``curriculum.py``.
 ``paths`` must never import ``curriculum`` (one-way dependency).
+
+Heading convention (frozen)
+---------------------------
+Compass / navigation degrees, **not** the mathematical polar angle:
+
+- ``0°``   = North  (+y)
+- ``90°``  = East   (+x)
+- ``180°`` = South  (-y)
+- ``270°`` = West   (-x)
+
+Unit displacement::
+
+    (dx, dy) = (sin(heading), cos(heading)) * distance
+
+Default input resolution is 36 bins → 10° steps (one neuron per bin later).
 """
 
 from __future__ import annotations
@@ -36,7 +51,23 @@ ARC_TURN_MAX_RATIO = 0.85  # ≤ ~306° sweep
 
 
 class DifficultySpec(TypedDict):
-    """Schema for one difficulty stage (concrete specs live in ``curriculum``)."""
+    """Schema for one difficulty stage (concrete specs live in ``curriculum``).
+
+    Attributes
+    ----------
+    counts :
+        How many levels of each trajectory ``Style`` to generate.
+    n_segments :
+        Inclusive ``(lo, hi)`` range for segment count per level.
+    distance_range :
+        Inclusive-style ``(lo, hi)`` uniform draw for segment lengths.
+    turning_scale :
+        Jump size for ``turning`` levels (``gentle`` / ``sharp``).
+    curved_mode :
+        Shape for ``curved`` levels (``mild`` / ``arc``).
+    skill :
+        Short human-readable label for tables / notebooks.
+    """
 
     counts: dict[Style, int]
     n_segments: tuple[int, int]
@@ -48,15 +79,39 @@ class DifficultySpec(TypedDict):
 
 @dataclass(frozen=True)
 class Segment:
-    """One straight flight piece: compass heading + distance."""
+    """One straight flight piece: compass heading + distance.
 
-    heading_deg: float  # 0 = East, 90 = North (math angle, degrees)
+    Attributes
+    ----------
+    heading_deg :
+        Compass heading in degrees. ``0`` = North (+y), ``90`` = East (+x).
+    distance :
+        Path length along that heading (same units as coordinates).
+    """
+
+    heading_deg: float
     distance: float
 
 
 @dataclass(frozen=True)
 class Level:
-    """One full displacement trial with ground-truth vectors (pure data)."""
+    """One full displacement trial with ground-truth vectors (pure data).
+
+    Attributes
+    ----------
+    level_id :
+        Stable integer id within a dataset.
+    style :
+        Trajectory family (``linear`` / ``turning`` / ``curved``).
+    segments :
+        Ordered flight pieces from home.
+    end_xy :
+        Release point ``(x, y)`` after integrating all segments.
+    home_xy :
+        Vector from release back home (``-end_xy``).
+    difficulty :
+        Curriculum stage tag.
+    """
 
     level_id: int
     style: Style
@@ -76,20 +131,55 @@ def _heading_step(heading_bins: int) -> float:
 
 
 def _heading_to_unit(heading_deg: float) -> np.ndarray:
-    """Convert degrees to a 2D unit vector (0° = +x / East, 90° = +y / North)."""
+    """Convert compass degrees to a 2D unit vector.
+
+    Parameters
+    ----------
+    heading_deg :
+        Compass heading. ``0`` = North (+y), ``90`` = East (+x).
+
+    Returns
+    -------
+    np.ndarray
+        Shape ``(2,)``: ``[sin(θ), cos(θ)]`` → ``(x, y)``.
+    """
     rad = np.deg2rad(heading_deg)
-    return np.array([np.cos(rad), np.sin(rad)], dtype=float)
+    return np.array([np.sin(rad), np.cos(rad)], dtype=float)
 
 
 def snap_heading(heading_deg: float, heading_bins: int = DEFAULT_HEADING_BINS) -> float:
-    """Snap heading to the nearest bin (default: 10° steps for 36 input neurons)."""
+    """Snap heading to the nearest bin (default: 10° steps for 36 input neurons).
+
+    Parameters
+    ----------
+    heading_deg :
+        Raw compass heading in degrees.
+    heading_bins :
+        Number of equal bins over ``[0, 360)``. Default ``36`` → 10° resolution.
+
+    Returns
+    -------
+    float
+        Snapped heading in ``[0, 360)``.
+    """
     step = _heading_step(heading_bins)
     snapped = round(heading_deg / step) * step
     return float(snapped % FULL_CIRCLE_DEG)
 
 
 def trajectory_points(segments: Sequence[Segment]) -> np.ndarray:
-    """Cumulative (x, y) positions. Shape (n_segments + 1, 2), start at home."""
+    """Cumulative ``(x, y)`` positions along a route.
+
+    Parameters
+    ----------
+    segments :
+        Ordered flight pieces starting from home.
+
+    Returns
+    -------
+    np.ndarray
+        Shape ``(n_segments + 1, 2)``. Row 0 is home ``(0, 0)``.
+    """
     points = [np.zeros(2, dtype=float)]
     pos = np.zeros(2, dtype=float)
     for seg in segments:
@@ -99,12 +189,34 @@ def trajectory_points(segments: Sequence[Segment]) -> np.ndarray:
 
 
 def displacement_vector(segments: Sequence[Segment]) -> np.ndarray:
-    """Vector from home (0,0) to the release point."""
+    """Vector from home ``(0, 0)`` to the release point.
+
+    Parameters
+    ----------
+    segments :
+        Ordered flight pieces.
+
+    Returns
+    -------
+    np.ndarray
+        Shape ``(2,)`` end position.
+    """
     return trajectory_points(segments)[-1].copy()
 
 
 def home_vector(segments: Sequence[Segment]) -> np.ndarray:
-    """Vector from the release point back home (= -displacement)."""
+    """Vector from the release point back home (``-displacement``).
+
+    Parameters
+    ----------
+    segments :
+        Ordered flight pieces.
+
+    Returns
+    -------
+    np.ndarray
+        Shape ``(2,)`` home vector (Ridge-regression target).
+    """
     return -displacement_vector(segments)
 
 
@@ -206,7 +318,7 @@ def _curved_headings(
 def generate_level(
     style: Style = "linear",
     n_segments: int = 3,
-    seed: int | None = None,
+    seed: int = 0,
     heading_bins: int = DEFAULT_HEADING_BINS,
     distance_range: tuple[float, float] = (0.5, 1.5),
     level_id: int = 0,
@@ -214,7 +326,41 @@ def generate_level(
     curved_mode: CurvedMode = "mild",
     turning_scale: TurningScale = "gentle",
 ) -> Level:
-    """Create one displacement level (geometry computed once, then stored on Level)."""
+    """Create one displacement level (geometry computed once, then stored).
+
+    Parameters
+    ----------
+    style :
+        Trajectory family: ``linear``, ``turning``, or ``curved``.
+    n_segments :
+        Number of straight pieces (≥ 1).
+    seed :
+        RNG seed for reproducible headings/distances. Always an ``int``
+        (never ``None``). Curriculum generation uses its own default ``42``
+        and passes explicit child seeds here.
+    heading_bins :
+        Compass resolution. Default ``36`` → 10° bins (``0°`` = North).
+    distance_range :
+        Inclusive-style ``(lo, hi)`` uniform draw for each segment length.
+    level_id :
+        Stored on the returned ``Level``.
+    difficulty :
+        Curriculum stage tag stored on the level.
+    curved_mode :
+        Only for ``style="curved"``: ``mild`` or ``arc``.
+    turning_scale :
+        Only for ``style="turning"``: ``gentle`` or ``sharp``.
+
+    Returns
+    -------
+    Level
+        Immutable trial with ``end_xy`` and ``home_xy`` precomputed.
+
+    Raises
+    ------
+    ValueError
+        If ``style`` is unknown or ``n_segments < 1``.
+    """
     if style not in STYLES:
         raise ValueError(f"Unknown style {style!r}. Choose from {STYLES}.")
     if n_segments < 1:

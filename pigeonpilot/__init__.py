@@ -20,6 +20,15 @@ from .curriculum import (
     split_dataset,
     summarize_dataset,
 )
+from .encoding import (
+    SpikeBlock,
+    compass_bin,
+    encode_level,
+    encode_segments,
+    heading_to_bin,
+    plan_encoding,
+    segment_n_steps,
+)
 from .paths import (
     DIFFICULTIES,
     STYLES,
@@ -29,7 +38,18 @@ from .paths import (
     displacement_vector,
     generate_level,
     home_vector,
+    snap_heading,
     trajectory_points,
+)
+from .viz import (
+    compute_xy_limits,
+    plot_body_ring_anatomy,
+    plot_level,
+    plot_level_encoding,
+    plot_level_ring_frames,
+    plot_levels_grid,
+    plot_release_points,
+    plot_spike_raster,
 )
 
 __all__ = [
@@ -51,7 +71,23 @@ __all__ = [
     "trajectory_points",
     "home_vector",
     "displacement_vector",
+    "snap_heading",
+    "compass_bin",
+    "heading_to_bin",
+    "segment_n_steps",
+    "SpikeBlock",
+    "plan_encoding",
+    "encode_segments",
+    "encode_level",
     "iter_training_indices",
     "iter_train_schedule",
     "epoch_order",
+    "compute_xy_limits",
+    "plot_level",
+    "plot_levels_grid",
+    "plot_release_points",
+    "plot_spike_raster",
+    "plot_level_encoding",
+    "plot_body_ring_anatomy",
+    "plot_level_ring_frames",
 ]

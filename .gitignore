@@ -36,4 +36,8 @@ data/
 outputs/
 *.pkl
 *.pt
+*.npy
 figures/
+runs/
+logs/
+*.log
