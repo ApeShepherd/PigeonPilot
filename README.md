@@ -6,8 +6,10 @@ Meet Captain Pigeon — the fearless bird who flies this project.
 
 ## Research question
 
-> Does **STDP** in a recurrent LIF reservoir improve **path integration**
-> compared to a **fixed** (non-plastic) reservoir?
+> Can a recurrent LIF reservoir solve a path-finding problem with a ridge regression readout function?
+> Does STDP improve the result?
+
+# TODO: add an explanation of the problem with pictures
 
 ## Heading convention (frozen)
 
@@ -89,7 +91,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 pytest -q
-jupyter notebook PigeonPilot.ipynb
+jupyter notebook DatasetVisualizations.ipynb
 ```
 
 SNN stack (torch / bindsnet / sklearn) when you start reservoir work:

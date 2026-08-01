@@ -1,3 +1,6 @@
-# Install the package in editable mode with notebook/test tooling.
-# Core deps: numpy, matplotlib. SNN stack: pip install -e ".[snn]"
--e ".[dev]"
+# Install this package in editable mode with all dependencies:
+#   pip install -e ".[snn,dev]"
+#
+# Core dependencies (installed automatically): numpy, matplotlib
+# Extra "snn"  -> torch, bindsnet, scikit-learn
+# Extra "dev"  -> pytest, jupyter, ipykernel
