@@ -84,7 +84,8 @@ class Segment:
     Attributes
     ----------
     heading_deg :
-        Compass heading in degrees. ``0`` = North (+y), ``90`` = East (+x).
+        Compass heading in degrees. ``0`` = North (+y), ``90`` = East (+x),
+        ``180`` = South (-y), ``270`` = West (-x).
     distance :
         Path length along that heading (same units as coordinates).
     """
@@ -136,7 +137,8 @@ def _heading_to_unit(heading_deg: float) -> np.ndarray:
     Parameters
     ----------
     heading_deg :
-        Compass heading. ``0`` = North (+y), ``90`` = East (+x).
+        Compass heading. ``0`` = North (+y), ``90`` = East (+x),
+        ``180`` = South (-y), ``270`` = West (-x).
 
     Returns
     -------

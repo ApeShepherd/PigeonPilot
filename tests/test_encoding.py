@@ -24,10 +24,10 @@ def test_compass_bin_is_world_frame():
 
 def test_heading_to_bin_north_aligned_body_ring():
     """Active bin = body neuron pointing at North (not travel-direction label)."""
-    assert heading_to_bin(0.0) == 0  # face North → forward (bin 0) points North
-    assert heading_to_bin(270.0) == 9  # face West (90° left) → bin 9 points North
-    assert heading_to_bin(90.0) == 27  # face East → bin 27 points North
-    assert heading_to_bin(180.0) == 18
+    assert heading_to_bin(0.0) == 0  # face North (heading 0°) → bin 0 points North
+    assert heading_to_bin(90.0) == 27  # face East (heading 90°) → bin 27 points North
+    assert heading_to_bin(180.0) == 18  # face South (heading 180°) → bin 18 points North
+    assert heading_to_bin(270.0) == 9  # face West (heading 270°) → bin 9 points North #
 
 
 def test_segment_n_steps_defaults_map_distance_one_to_one():
@@ -46,7 +46,7 @@ def test_ten_units_north_activates_only_bin_zero():
 
 
 def test_west_activates_bin_nine():
-    """90° left from North → body neuron 9 points North and receives spikes."""
+    """Heading 270° = West → body neuron 9 points North and receives spikes."""
     segments = (Segment(heading_deg=270.0, distance=4.0),)
     spikes = encode_segments(segments)
     assert spikes.shape == (4, 36)

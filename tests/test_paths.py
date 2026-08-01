@@ -48,6 +48,20 @@ def test_single_segment_east_is_plus_x():
     np.testing.assert_allclose(home_vector(segments), [-1, 0], atol=1e-9)
 
 
+def test_single_segment_south_is_minus_y():
+    """Compass: 180° = South → -y."""
+    segments = (Segment(heading_deg=180.0, distance=1.0),)
+    np.testing.assert_allclose(displacement_vector(segments), [0, -1], atol=1e-9)
+    np.testing.assert_allclose(home_vector(segments), [0, 1], atol=1e-9)
+
+
+def test_single_segment_west_is_minus_x():
+    """Compass: 270° = West → -x."""
+    segments = (Segment(heading_deg=270.0, distance=1.0),)
+    np.testing.assert_allclose(displacement_vector(segments), [-1, 0], atol=1e-9)
+    np.testing.assert_allclose(home_vector(segments), [1, 0], atol=1e-9)
+
+
 def test_generated_level_home_xy_is_negation_of_end_xy():
     """generate_level stores home/end once; home_xy == -end_xy."""
     level = generate_level(style="turning", n_segments=4, seed=7, turning_scale="gentle")

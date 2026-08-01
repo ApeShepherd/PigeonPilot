@@ -858,7 +858,7 @@ def plot_body_ring_anatomy(figsize: tuple[float, float] = (11.5, 3.8)) -> Figure
     )
     ax1.set_title("2 · Face North → bin 0 at N\n(beak = bin 0)", fontsize=10, pad=12)
 
-    # (3) Face West: body rotated 90° left; bin 9 sits at North
+    # (3) Face West (heading 270°): body yaw −90° / CCW from North; bin 9 at North
     ax2 = axes[2]
     west = 270.0
     _draw_body_ring_world(
@@ -868,7 +868,11 @@ def plot_body_ring_anatomy(figsize: tuple[float, float] = (11.5, 3.8)) -> Figure
         highlight_color="crimson",
         dim=0.4,
     )
-    ax2.set_title("3 · Face West (90° left)\n→ bin 9 at North fires", fontsize=10, pad=12)
+    ax2.set_title(
+        "3 · Face West (heading 270°)\n→ bin 9 at North fires",
+        fontsize=10,
+        pad=12,
+    )
 
     step = FULL_CIRCLE_DEG / DEFAULT_HEADING_BINS
     fig.suptitle(

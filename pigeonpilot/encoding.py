@@ -13,7 +13,9 @@ North**:
 
     active_bin = (-compass_bin(heading)) mod n_bins
 
-Examples (36 bins): face North → bin ``0``; turn 90° left to West → bin ``9``.
+Examples (36 bins): face North (heading ``0°``) → bin ``0``;
+East (``90°``) → bin ``27``; South (``180°``) → bin ``18``;
+West (``270°``; reached by a 90° left turn from North) → bin ``9``.
 
 Constant velocity: firing **duration** ∝ distance. With ``velocity=1`` and
 ``dt=1``, distance 10 North → 10 timesteps with only bin ``0`` = ``1.0``.
@@ -77,12 +79,14 @@ def compass_bin(
     heading_deg: float,
     heading_bins: int = DEFAULT_HEADING_BINS,
 ) -> int:
-    """World-frame compass index of a travel heading (``0`` = North, ``9`` = East).
+    """World-frame compass index of a travel heading
+    (``0`` = North, ``9`` = East, ``18`` = South, ``27`` = West at 36 bins).
 
     Parameters
     ----------
     heading_deg :
-        Compass heading in degrees (``0`` = North, ``90`` = East).
+        Compass heading in degrees (``0`` = North, ``90`` = East,
+        ``180`` = South, ``270`` = West).
     heading_bins :
         Number of equal bins over ``[0, 360)``. Default ``36`` → 10° steps.
 
@@ -112,7 +116,7 @@ def heading_to_bin(
     ----------
     heading_deg :
         Compass travel / body heading (``0`` = North, ``90`` = East,
-        ``270`` = West).
+        ``180`` = South, ``270`` = West).
     heading_bins :
         Number of body-ring neurons. Default ``36`` → 10° steps.
 
@@ -120,7 +124,8 @@ def heading_to_bin(
     -------
     int
         Active input index in ``[0, heading_bins)``.
-        North → ``0``; West (90° left) → ``9``; East → ``27`` (36 bins).
+        North (``0°``) → ``0``; East (``90°``) → ``27``;
+        South (``180°``) → ``18``; West (``270°``) → ``9`` (36 bins).
     """
     return (-compass_bin(heading_deg, heading_bins)) % heading_bins
 

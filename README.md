@@ -57,7 +57,9 @@ Default curriculum epochs: `DEFAULT_EPOCHS_PER_DIFFICULTY`.
 
 - Body-fixed ring: bin `0` = beak (forward); the bird always faces travel direction
 - Spikes go to the bin that currently points at **geographic North**  
-  (`heading_to_bin(H) = (-compass_bin(H)) mod 36` — e.g. face West → bin `9`)
+  (`heading_to_bin(H) = (-compass_bin(H)) mod 36` —  
+  North `0°`→bin `0`, East `90°`→`27`, South `180°`→`18`, West `270°`→`9`;  
+  “90° left” is only the turn amount from North to West, not the compass label)
 - Constant velocity: firing **duration** ∝ distance (`n_steps = max(1, round(distance / (v · dt)))`)
 - Output: `float32` array of shape `(T, 36)` — no Torch/BindsNET dependency
 - Demo plots: `plot_body_ring_anatomy`, `plot_level_encoding`, `plot_level_ring_frames`  
