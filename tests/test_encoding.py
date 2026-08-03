@@ -129,3 +129,50 @@ def test_heading_bins_other_than_default():
     spikes = encode_segments(segments, heading_bins=18)
     assert spikes.shape == (2, 18)
     assert spikes[:, 0].sum() == 2.0
+
+
+def test_rate_hz_none_stays_deterministic_one_hot():
+    segments = (Segment(heading_deg=0.0, distance=5.0),)
+    spikes = encode_segments(segments, rate_hz=None, seed=0)
+    np.testing.assert_array_equal(spikes[:, 0], np.ones(5, dtype=np.float32))
+    assert spikes[:, 1:].sum() == 0.0
+
+
+def test_poisson_rate_hz_is_reproducible_with_seed():
+    segments = (Segment(heading_deg=0.0, distance=200.0),)
+    a = encode_segments(segments, dt=1.0, rate_hz=40.0, seed=7)
+    b = encode_segments(segments, dt=1.0, rate_hz=40.0, seed=7)
+    c = encode_segments(segments, dt=1.0, rate_hz=40.0, seed=8)
+    np.testing.assert_array_equal(a, b)
+    assert not np.array_equal(a, c)
+
+
+def test_poisson_rate_hz_empirical_rate_near_target():
+    # Long North segment: mean spikes/sec on bin 0 should be near rate_hz (loose tol).
+    segments = (Segment(heading_deg=0.0, distance=5000.0),)
+    spikes = encode_segments(segments, velocity=1.0, dt=1.0, rate_hz=40.0, seed=0)
+    # dt=1 ms → duration in seconds = T * 0.001
+    t_sec = spikes.shape[0] * 1e-3
+    empirical_hz = float(spikes[:, 0].sum()) / t_sec
+    assert 20.0 < empirical_hz < 60.0
+    assert spikes[:, 1:].sum() == 0.0
+
+
+def test_rate_hz_rejects_non_positive():
+    import pytest
+
+    segments = (Segment(heading_deg=0.0, distance=2.0),)
+    with pytest.raises(ValueError, match="rate_hz"):
+        encode_segments(segments, rate_hz=0.0)
+    with pytest.raises(ValueError, match="rate_hz"):
+        encode_segments(segments, rate_hz=-1.0)
+
+
+def test_encode_level_forwards_rate_hz_and_seed():
+    level = generate_level(style="linear", n_segments=2, seed=0, level_id=3)
+    a = encode_level(level, rate_hz=40.0, seed=100 + level.level_id, dt=1.0)
+    b = encode_level(level, rate_hz=40.0, seed=100 + level.level_id, dt=1.0)
+    np.testing.assert_array_equal(a, b)
+    # Duration still set by velocity/dt, not by rate_hz.
+    det = encode_level(level, rate_hz=None, dt=1.0, velocity=1.0)
+    assert a.shape == det.shape

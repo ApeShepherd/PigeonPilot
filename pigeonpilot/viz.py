@@ -620,6 +620,8 @@ def plot_level_encoding(
     figsize: tuple[float, float] = (12.5, 4.6),
     title: Optional[str] = None,
     t_max: Optional[float] = None,
+    rate_hz: float | None = None,
+    seed: int | None = None,
 ) -> Figure:
     """Side-by-side: displacement path (segments colored) | spike raster.
 
@@ -631,7 +633,7 @@ def plot_level_encoding(
         Constant speed forwarded to ``plan_encoding`` / ``encode_level``.
     dt :
         Simulation timestep. Defaults to ``0.25`` so duration bars are
-        readable in demos; encoding unit tests use ``dt=1.0``.
+        readable in demos; encoding unit tests / Models use ``dt=1.0`` (ms).
     figsize :
         Figure size in inches.
     title :
@@ -639,6 +641,11 @@ def plot_level_encoding(
     t_max :
         Shared raster x-axis length (pass the longer trial's ``T`` when
         comparing levels).
+    rate_hz :
+        Optional Poisson neural rate (Hz). ``None`` = dense one-hot (clearer
+        teaching rasters). With BindsNET ``dt`` in ms, ``p = rate_hz * dt / 1000``.
+    seed :
+        Poisson seed (ignored if ``rate_hz is None``).
 
     Returns
     -------
@@ -647,7 +654,9 @@ def plot_level_encoding(
     """
     segments = level.segments
     plan = plan_encoding(segments, velocity=velocity, dt=dt)
-    spikes = encode_level(level, velocity=velocity, dt=dt)
+    spikes = encode_level(
+        level, velocity=velocity, dt=dt, rate_hz=rate_hz, seed=seed
+    )
     colors = _segment_colors(len(segments))
     points = trajectory_points(segments)
 
@@ -690,12 +699,16 @@ def plot_level_encoding(
     _draw_chrome(ax_path, limits, f"{head}\npath (color = segment)")
     _finalize_legend(ax_path)
 
+    rate_lbl = "one-hot" if rate_hz is None else f"Poisson {rate_hz:g} Hz"
     plot_spike_raster(
         spikes,
         ax=ax_raster,
         plan=plan,
         t_max=t_max,
-        title=f"rate code  |  dt={dt:g}, v={velocity:g}  |  shape {tuple(spikes.shape)}",
+        title=(
+            f"rate code ({rate_lbl})  |  dt={dt:g}, v={velocity:g}  |  "
+            f"shape {tuple(spikes.shape)}"
+        ),
     )
     fig.tight_layout()
     return fig
