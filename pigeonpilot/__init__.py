@@ -8,6 +8,7 @@ compared to a fixed (non-plastic) reservoir?
 
 from .curriculum import (
     DEFAULT_EPOCHS_PER_DIFFICULTY,
+    DEFAULT_MIXED_EPOCHS_AFTER,
     DIFFICULTY_SPECS,
     STYLE_LABELS,
     curriculum_level_count,
@@ -37,6 +38,8 @@ from .paths import (
     Segment,
     displacement_vector,
     generate_level,
+    home_heading_bin,
+    home_heading_deg,
     home_vector,
     snap_heading,
     trajectory_points,
@@ -61,6 +64,7 @@ __all__ = [
     "DIFFICULTY_SPECS",
     "DifficultySpec",
     "DEFAULT_EPOCHS_PER_DIFFICULTY",
+    "DEFAULT_MIXED_EPOCHS_AFTER",
     "curriculum_level_count",
     "format_curriculum_table",
     "format_style_labels_table",
@@ -70,6 +74,8 @@ __all__ = [
     "summarize_dataset",
     "trajectory_points",
     "home_vector",
+    "home_heading_deg",
+    "home_heading_bin",
     "displacement_vector",
     "snap_heading",
     "compass_bin",

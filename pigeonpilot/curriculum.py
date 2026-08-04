@@ -13,56 +13,91 @@ import numpy as np
 from .paths import (
     DEFAULT_HEADING_BINS,
     DIFFICULTIES,
+    FULL_CIRCLE_DEG,
     STYLES,
+    CurvedMode,
     Difficulty,
     DifficultySpec,
     Level,
     Style,
     generate_level,
+    home_heading_bin,
 )
 
 STYLE_LABELS: dict[Style, str] = {
     "linear": "straight / direct",
     "turning": "heading jumps (turns)",
+    "zigzag": "alternating left/right zigzags",
     "curved": "wave or sweeping arc",
 }
 
+# Monostyle skill ladder: linear → gentle turn → zigzag×2 → curved.
+# easy is short (sanity / bin coverage); real PI starts at medium.
 DIFFICULTY_SPECS: dict[Difficulty, DifficultySpec] = {
     "easy": {
-        "counts": {"linear": 30, "turning": 30},
-        "n_segments": (2, 3),
-        "distance_range": (0.4, 1.0),
+        "counts": {"linear": 180},
+        "n_segments": (2, 4),
+        "distance_range": (0.5, 1.2),
         "turning_scale": "gentle",
+        "zigzag_scale": "gentle",
         "curved_mode": "mild",
-        "skill": "distance + mild turn",
+        "skill": "heading inversion / distance (warm-up)",
     },
     "medium": {
-        "counts": {"turning": 30, "curved": 30},
-        "n_segments": (4, 5),
-        "distance_range": (0.5, 1.4),
-        "turning_scale": "sharp",
+        "counts": {"turning": 135},
+        "n_segments": (3, 5),
+        "distance_range": (0.5, 1.3),
+        "turning_scale": "gentle",
+        "zigzag_scale": "gentle",
         "curved_mode": "mild",
-        "skill": "many turns/curves (no linear)",
+        "skill": "gentle vector addition (first real PI)",
     },
     "hard": {
-        "counts": {"turning": 15, "curved": 15},
-        "n_segments": (6, 8),
-        "distance_range": (0.7, 1.8),
-        "turning_scale": "sharp",
+        "counts": {"zigzag": 135},
+        "n_segments": (5, 7),
+        "distance_range": (0.5, 1.2),
+        "turning_scale": "gentle",
+        "zigzag_scale": "gentle",
         "curved_mode": "arc",
-        "skill": "long memory + circle-like arcs",
+        "skill": "visible zigzag / moderate cancellation (~50–70°)",
+    },
+    "expert": {
+        "counts": {"zigzag": 135},
+        "n_segments": (5, 7),
+        "distance_range": (0.5, 1.2),
+        "turning_scale": "sharp",
+        "zigzag_scale": "sharp",
+        "curved_mode": "arc",
+        "skill": "sharp zigzag / strong cancellation (~90–120°)",
+    },
+    "extreme": {
+        "counts": {"curved": 135},
+        "n_segments": (6, 8),
+        "distance_range": (0.5, 1.3),
+        "turning_scale": "sharp",
+        "zigzag_scale": "sharp",
+        "curved_mode": "arc",
+        "skill": "sweeping arcs only (long memory)",
     },
 }
 
+# Few epochs on easy (avoid +180° shortcut); more on first real PI stages.
 DEFAULT_EPOCHS_PER_DIFFICULTY: dict[Difficulty, int] = {
-    "easy": 40,
+    "easy": 15,
     "medium": 30,
-    "hard": 30,
+    "hard": 25,
+    "expert": 20,
+    "extreme": 20,
 }
+
+# Short mixed rehearsal after the curriculum ladder (forgetting control).
+DEFAULT_MIXED_EPOCHS_AFTER = 6
+
+LINEAR_REPEATS_PER_BIN = 5  # 5 × 36 = 180 easy linear levels
 
 ScheduleMode = Literal["mixed", "curriculum"]
 SEED_STRIDE = 1_000_003
-# Keep ≥1 held-out sample when a (difficulty, style) group is large enough.
+# Keep ≥1 held-out sample when a (difficulty, style[, home_bin]) group is large enough.
 MIN_GROUP_SIZE_FOR_HELD_OUT_TEST = 5
 
 
@@ -92,8 +127,15 @@ def _format_families_used(cfg: DifficultySpec) -> str:
             continue
         if style == "turning":
             parts.append(f"{cfg['turning_scale']} `{style}`")
+        elif style == "zigzag":
+            parts.append(f"{cfg['zigzag_scale']} `{style}`")
         elif style == "curved":
-            parts.append(f"{cfg['curved_mode']} `{style}`")
+            modes = cfg.get("curved_modes")
+            if modes:
+                mode_bits = " + ".join(f"{n} {m}" for m, n in modes.items())
+                parts.append(f"`{style}` ({mode_bits})")
+            else:
+                parts.append(f"{cfg['curved_mode']} `{style}`")
         else:
             parts.append(f"`{style}`")
     return " + ".join(parts)
@@ -159,12 +201,45 @@ def format_style_labels_table() -> str:
     return "\n".join(lines)
 
 
+def _append_generated_level(
+    levels: list[Level],
+    *,
+    style: Style,
+    n_segments: int,
+    child_seed: int,
+    heading_bins: int,
+    cfg: DifficultySpec,
+    difficulty: Difficulty,
+    level_id: int,
+    curved_mode: CurvedMode | None = None,
+    base_heading_deg: float | None = None,
+) -> None:
+    levels.append(
+        generate_level(
+            style=style,
+            n_segments=n_segments,
+            seed=child_seed,
+            heading_bins=heading_bins,
+            distance_range=cfg["distance_range"],
+            level_id=level_id,
+            difficulty=difficulty,
+            curved_mode=curved_mode if curved_mode is not None else cfg["curved_mode"],
+            turning_scale=cfg["turning_scale"],
+            zigzag_scale=cfg["zigzag_scale"],
+            base_heading_deg=base_heading_deg,
+        )
+    )
+
+
 def generate_curriculum_dataset(
     seed: int = 42,
     heading_bins: int = DEFAULT_HEADING_BINS,
     specs: dict[Difficulty, DifficultySpec] | None = None,
 ) -> list[Level]:
-    """Build easy → medium → hard with *different skills*, not just longer lines.
+    """Build the monostyle skill ladder easy → … → extreme.
+
+    Linear (easy) levels systematically cover every outbound heading bin
+    (``LINEAR_REPEATS_PER_BIN`` repeats) so home-bin labels are complete.
 
     Parameters
     ----------
@@ -179,12 +254,13 @@ def generate_curriculum_dataset(
     Returns
     -------
     list of Level
-        Ordered easy → medium → hard. Size from ``curriculum_level_count``.
+        Ordered by ``DIFFICULTIES``. Size from ``curriculum_level_count``.
     """
     specs = specs or DIFFICULTY_SPECS
     rng = np.random.default_rng(seed)
     levels: list[Level] = []
     level_id = 0
+    step = FULL_CIRCLE_DEG / heading_bins
 
     for difficulty in DIFFICULTIES:
         cfg = specs[difficulty]
@@ -193,22 +269,71 @@ def generate_curriculum_dataset(
         for style in STYLES:
             if style not in counts:
                 continue
-            n_style = counts[style]
-            for _ in range(int(n_style)):
+            n_style = int(counts[style])
+
+            if style == "linear":
+                # Systematic outbound headings: repeats × bins == n_style.
+                if n_style != LINEAR_REPEATS_PER_BIN * heading_bins:
+                    raise ValueError(
+                        f"easy linear count must be "
+                        f"{LINEAR_REPEATS_PER_BIN}×{heading_bins}="
+                        f"{LINEAR_REPEATS_PER_BIN * heading_bins}, got {n_style}"
+                    )
+                for rep in range(LINEAR_REPEATS_PER_BIN):
+                    for bin_i in range(heading_bins):
+                        n_segments = int(rng.integers(n_lo, n_hi + 1))
+                        child_seed = int(rng.integers(0, 2**31 - 1))
+                        _append_generated_level(
+                            levels,
+                            style=style,
+                            n_segments=n_segments,
+                            child_seed=child_seed,
+                            heading_bins=heading_bins,
+                            cfg=cfg,
+                            difficulty=difficulty,
+                            level_id=level_id,
+                            base_heading_deg=float(bin_i * step),
+                        )
+                        level_id += 1
+                continue
+
+            if style == "curved" and "curved_modes" in cfg:
+                mode_counts = cfg["curved_modes"]
+                if sum(mode_counts.values()) != n_style:
+                    raise ValueError(
+                        f"{difficulty} curved_modes sum "
+                        f"{sum(mode_counts.values())} != counts {n_style}"
+                    )
+                for mode, n_mode in mode_counts.items():
+                    for _ in range(int(n_mode)):
+                        n_segments = int(rng.integers(n_lo, n_hi + 1))
+                        child_seed = int(rng.integers(0, 2**31 - 1))
+                        _append_generated_level(
+                            levels,
+                            style=style,
+                            n_segments=n_segments,
+                            child_seed=child_seed,
+                            heading_bins=heading_bins,
+                            cfg=cfg,
+                            difficulty=difficulty,
+                            level_id=level_id,
+                            curved_mode=mode,
+                        )
+                        level_id += 1
+                continue
+
+            for _ in range(n_style):
                 n_segments = int(rng.integers(n_lo, n_hi + 1))
                 child_seed = int(rng.integers(0, 2**31 - 1))
-                levels.append(
-                    generate_level(
-                        style=style,
-                        n_segments=n_segments,
-                        seed=child_seed,
-                        heading_bins=heading_bins,
-                        distance_range=cfg["distance_range"],
-                        level_id=level_id,
-                        difficulty=difficulty,
-                        curved_mode=cfg["curved_mode"],
-                        turning_scale=cfg["turning_scale"],
-                    )
+                _append_generated_level(
+                    levels,
+                    style=style,
+                    n_segments=n_segments,
+                    child_seed=child_seed,
+                    heading_bins=heading_bins,
+                    cfg=cfg,
+                    difficulty=difficulty,
+                    level_id=level_id,
                 )
                 level_id += 1
     return levels
@@ -218,10 +343,11 @@ def split_dataset(
     levels: Sequence[Level],
     train_frac: float = 0.8,
     seed: int = 0,
+    heading_bins: int = DEFAULT_HEADING_BINS,
 ) -> tuple[list[Level], list[Level]]:
-    """Stratified train/test split by (difficulty, style).
+    """Stratified train/test split by (difficulty, style, home_bin).
 
-    Prevents "it only memorized these 24 paths" when evaluating.
+    Prevents "it only memorized these paths" when evaluating.
     Groups with size ``>= MIN_GROUP_SIZE_FOR_HELD_OUT_TEST`` keep at
     least one held-out test sample.
 
@@ -233,6 +359,8 @@ def split_dataset(
         Target train fraction in ``(0, 1)``.
     seed :
         Shuffle seed within each stratum.
+    heading_bins :
+        Bin resolution for ``home_heading_bin`` stratification.
 
     Returns
     -------
@@ -251,9 +379,10 @@ def split_dataset(
     train: list[Level] = []
     test: list[Level] = []
 
-    groups: dict[tuple[Difficulty, Style], list[Level]] = {}
+    groups: dict[tuple[Difficulty, Style, int], list[Level]] = {}
     for lv in levels:
-        groups.setdefault((lv.difficulty, lv.style), []).append(lv)
+        key = (lv.difficulty, lv.style, home_heading_bin(lv, heading_bins))
+        groups.setdefault(key, []).append(lv)
 
     for key in sorted(groups.keys()):
         group = list(groups[key])
@@ -349,6 +478,7 @@ def iter_train_schedule(
     mode: ScheduleMode = "curriculum",
     epochs_per_difficulty: dict[Difficulty, int] | None = None,
     n_epochs_mixed: int = 100,
+    n_epochs_mixed_after: int = 0,
     seed: int = 0,
 ) -> Iterator[tuple[str, int, int, Level]]:
     """Training presentation order over the train set.
@@ -358,12 +488,15 @@ def iter_train_schedule(
     train_levels :
         Train split (index space for yielded ``train_index``).
     mode :
-        ``"curriculum"``: easy → medium → hard (shuffle within phase).
+        ``"curriculum"``: easy → … → extreme (shuffle within phase).
         ``"mixed"``: every epoch shuffles all train levels together.
     epochs_per_difficulty :
         Only for curriculum mode. Defaults to ``DEFAULT_EPOCHS_PER_DIFFICULTY``.
     n_epochs_mixed :
         Only for mixed mode.
+    n_epochs_mixed_after :
+        After curriculum phases, optionally run this many full mixed epochs
+        (forgetting control). Ignored when ``mode="mixed"``.
     seed :
         Base seed for epoch shuffles.
 
@@ -394,4 +527,11 @@ def iter_train_schedule(
             for local in order:
                 train_index = idxs[int(local)]
                 yield difficulty, ep, train_index, train_levels[train_index]
+            global_phase_epoch += 1
+
+    if n_epochs_mixed_after > 0 and train_levels:
+        for ep in range(int(n_epochs_mixed_after)):
+            order = epoch_order(len(train_levels), epoch=global_phase_epoch, seed=seed)
+            for train_index in order:
+                yield "mixed", ep, int(train_index), train_levels[int(train_index)]
             global_phase_epoch += 1

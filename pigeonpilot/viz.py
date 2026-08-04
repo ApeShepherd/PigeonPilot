@@ -59,6 +59,8 @@ DIFFICULTY_COLORS: dict[str, str] = {
     "easy": "tab:green",
     "medium": "tab:orange",
     "hard": "tab:red",
+    "expert": "tab:purple",
+    "extreme": "tab:brown",
 }
 
 SIZES: dict[str, float] = {
