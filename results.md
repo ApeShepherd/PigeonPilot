@@ -1,5 +1,39 @@
 # RESERVOIR AND STDP comparison
 
+## ALL NEURON SIZES COMPARISON
+![neuron_size_comparison.png](images/neuron_size_comparison.png)
+
+## NEURON SIZE 10
+
+=== Test angular error (circular) ===
+Pigeon A (fixed):  mean error 78.2° ± 51.9°  | exact-bin acc 6.8%
+Pigeon B (STDP):   mean error 68.4° ± 56.4°  | exact-bin acc 12.9%
+
+By difficulty (mean °):
+  easy      A= 74.4°   B= 53.3°   n=36
+  medium    A= 74.6°   B= 76.4°   n=28
+  hard      A= 78.5°   B= 65.0°   n=26
+  expert    A= 77.6°   B= 63.1°   n=29
+  extreme   A= 86.8°   B= 88.2°   n=28
+
+stage | trained on                               | tested on |    n |    A ° |  A acc |    B ° |  B acc
+-------------------------------------------------------------------------------------------------------
+    1 | easy                                     | easy     |   36 |   56.1 |  44.4% |   48.9 |  50.0%
+    2 | easy + medium                            | easy     |   36 |   74.4 |  11.1% |   66.1 |  33.3%
+    2 | easy + medium                            | medium   |   28 |   68.6 |   7.1% |   74.6 |   7.1%
+    3 | easy + medium + hard                     | easy     |   36 |   67.2 |  16.7% |   65.3 |  27.8%
+    3 | easy + medium + hard                     | medium   |   28 |   72.9 |   0.0% |   71.4 |   7.1%
+    3 | easy + medium + hard                     | hard     |   26 |   80.0 |   7.7% |   64.2 |   3.8%
+    4 | easy + medium + hard + expert            | easy     |   36 |   64.4 |  13.9% |   61.4 |  33.3%
+    4 | easy + medium + hard + expert            | medium   |   28 |   77.5 |   3.6% |   67.5 |   7.1%
+    4 | easy + medium + hard + expert            | hard     |   26 |   66.9 |   3.8% |   50.8 |   3.8%
+    4 | easy + medium + hard + expert            | expert   |   29 |   75.2 |   3.4% |   68.6 |   3.4%
+    5 | easy + medium + hard + expert + extreme  | easy     |   36 |   74.4 |  11.1% |   53.3 |  33.3%
+    5 | easy + medium + hard + expert + extreme  | medium   |   28 |   74.6 |   7.1% |   76.4 |  10.7%
+    5 | easy + medium + hard + expert + extreme  | hard     |   26 |   78.5 |   0.0% |   65.0 |   3.8%
+    5 | easy + medium + hard + expert + extreme  | expert   |   29 |   77.6 |   6.9% |   63.1 |   3.4%
+    5 | easy + medium + hard + expert + extreme  | extreme  |   28 |   86.8 |   7.1% |   88.2 |   7.1%
+
 ## NEURON SIZE 100
 
 === Test angular error (circular) ===
@@ -106,17 +140,3 @@ stage | trained on                               | tested on |    n |    A ° | 
     5 | easy + medium + hard + expert + extreme  | extreme  |   28 |   61.4 |   3.6%
 
 ![img_6.png](img_6_10000_neurons_levels.png)
-
-10.000 neurons:
-
-=== Test angular error (circular) ===
-Pigeon A (fixed):  mean error 30.6° ± 33.1°  | exact-bin acc 25.2%
-
-By difficulty (mean °):
-  easy      A= 18.3°   B= 18.3°   n=36
-  medium    A= 22.5°   B= 22.5°   n=28
-  hard      A= 19.2°   B= 19.2°   n=26
-  expert    A= 39.3°   B= 39.3°   n=29
-  extreme   A= 56.1°   B= 61.4°   n=28
-
-![img.png](img.png)

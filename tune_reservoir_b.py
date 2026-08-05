@@ -59,6 +59,7 @@ Run:
 
 from __future__ import annotations
 
+import math
 import sys
 import types
 from dataclasses import dataclass, field
@@ -152,14 +153,32 @@ STAGE1_SATURATION_LIMIT = 0.25
 # turned out to make potentiation dominate regardless of overall magnitude:
 # scaling the whole pair down just slowed the same one-directional drift, it
 # never changed direction (inhibitory weights eroded to exactly zero even at
-# 10x weaker than default). This grid instead varies the RATIO between them,
-# from fully balanced (1:1) up to the original notebook imbalance (100:1).
+# 10x weaker than default).
+#
+# Three questions this grid answers:
+#   1. Ratio, potentiation-dominant (nu_pre < nu_post) — original direction,
+#      from fully balanced (1:1) up to the notebook's own imbalance (100:1).
+#   2. Ratio, depression-dominant (nu_pre > nu_post) — the untested mirror
+#      case. Never checked before; could be fine, could fail differently
+#      (e.g. weights collapsing toward zero instead of avalanching).
+#   3. Magnitude at the balanced 1:1 point — is 0.001 special, or does any
+#      balanced pair work as long as it's balanced?
 STDP_NU_GRID = [
-    (1e-3, 1e-3),   # 1:1, fully balanced
-    (3e-4, 1e-3),   # ~3:1
-    (1e-4, 1e-3),   # 10:1
+    # 1) potentiation-dominant (already tested)
+    (1e-5, 1e-3),   # 100:1 — Models.ipynb's original default
     (3e-5, 1e-3),   # ~33:1
-    (1e-5, 1e-3),   # 100:1 — Models.ipynb's current default
+    (1e-4, 1e-3),   # 10:1
+    (3e-4, 1e-3),   # ~3:1
+    # 3) balanced, different magnitudes
+    (1e-4, 1e-4),   # 10x smaller than chosen value, still balanced
+    (1e-3, 1e-3),   # 1:1, fully balanced — the value we chose
+    (1e-2, 1e-2),   # 10x larger, still balanced
+    (1e-1, 1e-1),   # 100x larger, still balanced
+    # 2) depression-dominant (mirror direction — NEW)
+    (3e-4, 1e-4),   # ~3:1 reversed
+    (1e-3, 1e-4),   # 10:1 reversed
+    (1e-3, 3e-5),   # ~33:1 reversed
+    (1e-3, 1e-5),   # 100:1 reversed — mirror of the original default
 ]
 BASE_STDP_TC = 20.0                                   # held fixed while nu is searched (Stage 1)
 
@@ -528,12 +547,16 @@ def choose_stdp_nu() -> tuple[float, float]:
 
     candidates = [r for r in results if r.ok]
     if candidates:
-        # Most balanced ratio (closest to 1:1) first — least built-in
-        # one-directional bias — then largest magnitude among ties (most
-        # learning per unit of exposure).
-        chosen = min(candidates, key=lambda r: (r.ratio, -r.nu[1]))
+        # Most balanced ratio first — measured as distance from 1:1 in LOG
+        # space, since ratio=2 (potentiation-dominant) and ratio=0.5
+        # (depression-dominant) are equally imbalanced multiplicatively; a
+        # plain min(ratio) would wrongly favor small fractional ratios now
+        # that the grid includes the depression-dominant (ratio<1) mirror
+        # cases. Then largest magnitude among ties (most learning per unit
+        # of exposure).
+        chosen = min(candidates, key=lambda r: (abs(math.log(r.ratio)), -r.nu[1]))
         print(
-            f"\n-> chosen STDP_NU = {chosen.nu} (ratio {chosen.ratio:.1f}:1 — most balanced "
+            f"\n-> chosen STDP_NU = {chosen.nu} (ratio {chosen.ratio:.2f}:1 — most balanced "
             f"candidate meeting target, largest magnitude among ties)"
         )
     else:
@@ -542,7 +565,7 @@ def choose_stdp_nu() -> tuple[float, float]:
         # balanced ratio.
         chosen = min(
             results,
-            key=lambda r: (r.n_avalanche, max(r.mean_dw_ff, r.mean_dw_rec), r.ratio),
+            key=lambda r: (r.n_avalanche, max(r.mean_dw_ff, r.mean_dw_rec), abs(math.log(r.ratio))),
         )
         print(
             f"\n! no (nu_pre, nu_post) pair met both the learning and health targets — falling "

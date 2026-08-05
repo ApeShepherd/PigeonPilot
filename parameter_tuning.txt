@@ -7,7 +7,7 @@ FF_STRENGTH_GRID = [10, 20, 30, 40, 50, 60, 70, 80, 90]
 INHIB_WEIGHT_RATIO_GRID = [ 2.0, 4.0, 6.0, 8.0, 10.0]
 
 We want a coverage of 20-30 percent
-FEEDFORWARD_STRENGTH = 50 and INHIB_WEIGHT_RATIO = 6.0 seems to be good
+FEEDFORWARD_STRENGTH = 50 and INHIB_WEIGHT_RATIO = 1.0 seems to be good
 
 
    FF | ratio | easy_cov | hard_sat | max_burst | n_avalanche | n_silent | ok?

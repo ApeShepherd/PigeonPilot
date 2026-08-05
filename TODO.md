@@ -23,7 +23,15 @@ STDP
 - [x] stdp parameter tuning script (let it run in the morning, around 1h)
 - [x] document parameter tuning process
 
-- train both models level-wise with multiple neurons numbers and document progress
+- [x] train both models level-wise with multiple neurons numbers and document progress
   - change structure to level by level
   - make a test run with low neuron numbers and see what happens
   - test in the end for 100, 1000, 5000, 10000, 50000, 100000 neurons (the upper ones also possible without stdp because of time)
+
+### TODO - 5.8.
+- [x] make a plot for comparing all neuron numbers
+- [x] find poisson visualization
+- [x] Add results to the presentation
+- [x] add parameter tuning to presentation
+- [x] run 50000 neurons
+- [x] run 100000 neurons
