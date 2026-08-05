@@ -23,7 +23,7 @@ const PHASE = { IDLE: "idle", OUTBOUND: "outbound", RELEASE: "release", HOME: "h
 const RELEASE_HOLD_S = 0.7;
 const HOME_FLIGHT_S = 2.6;
 const OUTBOUND_FLIGHT_S = 4.2;
-// A flight plan takes ~1.5 s to compute; well past that, something is wrong.
+// A flight plan takes ~1 s to compute; well past that, something is wrong.
 const WATCHDOG_MS = 20000;
 
 function el(tag, className, text) {
@@ -46,15 +46,10 @@ function fitCanvas(canvas, cssWidth, cssHeight) {
   return ctx;
 }
 
-/** Compass degrees (0 = North, clockwise) to a screen-space unit vector. */
+/** Compass degrees (0 = North, clockwise) to a unit vector in world space. */
 function headingUnit(deg) {
   const rad = (deg * Math.PI) / 180;
   return { x: Math.sin(rad), y: Math.cos(rad) };
-}
-
-function circularDelta(a, b) {
-  let d = ((a - b) % 360 + 540) % 360 - 180;
-  return d;
 }
 
 function render({ model, el: root }) {
@@ -66,18 +61,13 @@ function render({ model, el: root }) {
   const replayBtn = el("button", "pp-btn", "Replay");
   const clearBtn = el("button", "pp-btn", "Clear");
   const speedWrap = el("label", "pp-field");
-  speedWrap.appendChild(el("span", null, "Tempo"));
+  speedWrap.appendChild(el("span", null, "Speed"));
   const speed = el("input", "pp-range");
   Object.assign(speed, { type: "range", min: "0.35", max: "2.5", step: "0.05", value: "1" });
   speedWrap.appendChild(speed);
-  const ensembleWrap = el("label", "pp-field pp-check");
-  const ensembleBox = el("input");
-  ensembleBox.type = "checkbox";
-  ensembleWrap.appendChild(ensembleBox);
-  ensembleWrap.appendChild(el("span", null, "Seed-Ensemble"));
-  toolbar.append(flyBtn, replayBtn, clearBtn, speedWrap, ensembleWrap);
+  toolbar.append(flyBtn, replayBtn, clearBtn, speedWrap);
 
-  const status = el("div", "pp-status", "Zeichne einen Pfad vom grünen Stern aus — dann Fly.");
+  const status = el("div", "pp-status", "Draw a route starting at the green home star, then press Fly.");
 
   const stage = el("div", "pp-stage");
   const fieldCanvas = el("canvas", "pp-canvas pp-field-canvas");
@@ -128,7 +118,6 @@ function render({ model, el: root }) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, FIELD_PX, FIELD_PX);
 
-    // grid + axes
     ctx.strokeStyle = COLOR.grid;
     ctx.lineWidth = 1;
     const stepWorld = state.half <= 4 ? 1 : 2;
@@ -142,7 +131,7 @@ function render({ model, el: root }) {
     ctx.beginPath(); ctx.moveTo(o.x, 0); ctx.lineTo(o.x, FIELD_PX); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, o.y); ctx.lineTo(FIELD_PX, o.y); ctx.stroke();
 
-    // training radius — the region the reservoir actually saw
+    // The region the reservoir actually saw during training.
     if (band.band_max_release) {
       ctx.save();
       ctx.setLineDash([5, 5]);
@@ -157,7 +146,7 @@ function render({ model, el: root }) {
       ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
       ctx.textAlign = "center";
       const label = g.toScreen(0, band.band_max_release);
-      ctx.fillText("Trainingsradius", label.x, label.y - 5);
+      ctx.fillText("training radius", label.x, label.y - 5);
       ctx.restore();
     }
 
@@ -171,7 +160,6 @@ function render({ model, el: root }) {
     ctx.textAlign = "right";
     ctx.fillText("E", FIELD_PX - 4, o.y - 4);
 
-    // live stroke while drawing
     if (state.stroke.length > 1 && !state.plan) {
       ctx.strokeStyle = COLOR.raw;
       ctx.lineWidth = 2;
@@ -186,29 +174,25 @@ function render({ model, el: root }) {
 
     const plan = state.plan;
     if (plan) {
-      // faint original stroke, so the snapping stays visible and honest
+      // Faint original stroke, so the snapping stays visible and honest.
       ctx.strokeStyle = COLOR.raw;
       ctx.lineWidth = 1.5;
       ctx.globalAlpha = 0.45;
       ctx.beginPath();
+      const factor = (plan.preprocessing && plan.preprocessing.scale_factor) || 1;
       plan.raw_points.forEach((p, i) => {
-        const s = g.toScreen(p[0] * plan.preprocessing.scale_factor, p[1] * plan.preprocessing.scale_factor);
+        const s = g.toScreen(p[0] * factor, p[1] * factor);
         i === 0 ? ctx.moveTo(s.x, s.y) : ctx.lineTo(s.x, s.y);
       });
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-      const travelled = outboundProgress();
-      drawSnappedPath(ctx, g, plan, travelled);
-
-      if (state.phase === PHASE.HOME || state.phase === PHASE.DONE) {
-        drawHomeLeg(ctx, g, plan);
-      }
+      drawSnappedPath(ctx, g, plan, outboundProgress());
+      if (state.phase === PHASE.HOME || state.phase === PHASE.DONE) drawHomeLeg(ctx, g, plan);
       if (state.phase !== PHASE.IDLE) drawRelease(ctx, g, plan);
       drawBirds(ctx, g, plan);
     }
 
-    // home star last so it stays on top
     drawStar(ctx, o.x, o.y, 9, COLOR.home);
   }
 
@@ -227,7 +211,6 @@ function render({ model, el: root }) {
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // travelled portion, drawn solid on top
     if (upto > 0) {
       ctx.strokeStyle = COLOR.path;
       ctx.beginPath();
@@ -271,8 +254,7 @@ function render({ model, el: root }) {
     ctx.restore();
 
     for (const m of plan.models) {
-      const bin = activeBin(m);
-      const dir = headingUnit((bin * 360) / plan.heading_bins);
+      const dir = headingUnit((m.pred_bin * 360) / plan.heading_bins);
       const end = g.toScreen(
         plan.release_xy[0] + dir.x * plan.home_distance,
         plan.release_xy[1] + dir.y * plan.home_distance,
@@ -315,10 +297,6 @@ function render({ model, el: root }) {
     return { x: last.x1, y: last.y1, seg: last };
   }
 
-  function activeBin(m) {
-    return ensembleBox.checked ? m.ensemble.bin : m.pred_bin;
-  }
-
   function drawBirds(ctx, g, plan) {
     ctx.font = "22px system-ui, 'Apple Color Emoji', sans-serif";
     ctx.textAlign = "center";
@@ -334,8 +312,7 @@ function render({ model, el: root }) {
     if (state.phase === PHASE.HOME || state.phase === PHASE.DONE) {
       const f = state.phase === PHASE.DONE ? 1 : Math.min(1, state.clock / HOME_FLIGHT_S);
       for (const m of plan.models) {
-        const bin = activeBin(m);
-        const dir = headingUnit((bin * 360) / plan.heading_bins);
+        const dir = headingUnit((m.pred_bin * 360) / plan.heading_bins);
         const x = plan.release_xy[0] + dir.x * plan.home_distance * f;
         const y = plan.release_xy[1] + dir.y * plan.home_distance * f;
         const s = g.toScreen(x, y);
@@ -379,8 +356,8 @@ function render({ model, el: root }) {
       ctx.fillStyle = COLOR.muted;
       ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Ringe erscheinen", RING_PX / 2, FIELD_PX / 2 - 8);
-      ctx.fillText("nach dem Flug", RING_PX / 2, FIELD_PX / 2 + 10);
+      ctx.fillText("Direction profiles", RING_PX / 2, FIELD_PX / 2 - 8);
+      ctx.fillText("appear after the flight", RING_PX / 2, FIELD_PX / 2 + 10);
       return;
     }
     const revealed = state.phase === PHASE.DONE || state.phase === PHASE.HOME;
@@ -398,8 +375,7 @@ function render({ model, el: root }) {
     ctx.arc(cx, cy, r, 0, TAU);
     ctx.stroke();
 
-    const useEnsemble = ensembleBox.checked;
-    const values = useEnsemble ? m.ensemble.histogram : m.scores;
+    const values = m.scores;
     const lo = Math.min(...values);
     const hi = Math.max(...values);
     const span = hi - lo || 1;
@@ -431,8 +407,7 @@ function render({ model, el: root }) {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      const bin = activeBin(m);
-      const pred = headingUnit((bin * 360) / bins);
+      const pred = headingUnit((m.pred_bin * 360) / bins);
       ctx.strokeStyle = COLOR[m.name];
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -441,18 +416,13 @@ function render({ model, el: root }) {
       ctx.stroke();
     }
 
-    const err = useEnsemble ? m.ensemble.error_deg : m.error_deg;
     ctx.fillStyle = COLOR.ink;
     ctx.font = "bold 12px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(m.label, cx, cy - r - 20);
     ctx.fillStyle = revealed ? COLOR[m.name] : COLOR.muted;
     ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
-    ctx.fillText(revealed ? `Fehler ${err.toFixed(0)}°` : "…", cx, cy - r - 6);
-    if (revealed && useEnsemble) {
-      ctx.fillStyle = COLOR.muted;
-      ctx.fillText(`±${m.ensemble.circular_sd_deg.toFixed(0)}° über ${m.ensemble.size} Seeds`, cx, cy + r + 16);
-    }
+    ctx.fillText(revealed ? `error ${m.error_deg.toFixed(0)}°` : "…", cx, cy - r - 6);
     ctx.restore();
   }
 
@@ -469,13 +439,13 @@ function render({ model, el: root }) {
     ctx.fillStyle = COLOR.muted;
     ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "right";
-    ctx.fillText("Input", padL - 8, padT + inH / 2);
-    ctx.fillText("36 Bins", padL - 8, padT + inH / 2 + 13);
-    ctx.fillText("Reservoir", padL - 8, padT + inH + gap + resH / 2);
+    ctx.fillText("input", padL - 8, padT + inH / 2);
+    ctx.fillText("36 bins", padL - 8, padT + inH / 2 + 13);
+    ctx.fillText("reservoir", padL - 8, padT + inH + gap + resH / 2);
 
     if (!plan) {
       ctx.textAlign = "center";
-      ctx.fillText("Spikes erscheinen während des Flugs", width / 2, RASTER_H / 2);
+      ctx.fillText("Spikes appear while the bird flies", width / 2, RASTER_H / 2);
       return;
     }
 
@@ -483,7 +453,6 @@ function render({ model, el: root }) {
     const tx = (t) => padL + (t / plan.n_steps) * plotW;
     const t0 = revealedSteps();
 
-    // segment bands, so a viewer sees which leg drives which spikes
     plan.segments.forEach((seg, i) => {
       ctx.fillStyle = i % 2 ? "#f8fafc" : "#f1f5f9";
       ctx.fillRect(tx(seg.t_start), padT, tx(seg.t_end) - tx(seg.t_start), inH);
@@ -491,7 +460,6 @@ function render({ model, el: root }) {
     ctx.fillStyle = "#f8fafc";
     ctx.fillRect(padL, padT + inH + gap, plotW, resH);
 
-    // input spikes, revealed as the bird flies
     ctx.fillStyle = COLOR.ink;
     for (const [t, bin] of plan.input_spikes) {
       if (t > t0) continue;
@@ -514,7 +482,6 @@ function render({ model, el: root }) {
     });
     ctx.globalAlpha = 1;
 
-    // time cursor
     if (state.phase === PHASE.OUTBOUND) {
       ctx.strokeStyle = COLOR.release;
       ctx.lineWidth = 1.5;
@@ -532,9 +499,9 @@ function render({ model, el: root }) {
     ctx.fillText(`${plan.n_steps} ms`, width - padR, RASTER_H - 20);
     ctx.textAlign = "center";
     ctx.fillText(
-      `${plan.input_spike_count} Input-Spikes · ` +
+      `${plan.input_spike_count} input spikes · ` +
         plan.models
-          .map((m) => `${m.name}: ${m.reservoir_spike_count} Reservoir-Spikes auf ${m.reservoir_active_units} Neuronen`)
+          .map((m) => `${m.name}: ${m.reservoir_spike_count} reservoir spikes on ${m.reservoir_active_units} neurons`)
           .join(" · "),
       width / 2,
       RASTER_H - 5,
@@ -574,12 +541,11 @@ function render({ model, el: root }) {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    const here = ensembleBox.checked ? m.ensemble.error_deg : m.error_deg;
     ctx.strokeStyle = COLOR[m.name];
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(xOf(here), 0);
-    ctx.lineTo(xOf(here), plotH);
+    ctx.moveTo(xOf(m.error_deg), 0);
+    ctx.lineTo(xOf(m.error_deg), plotH);
     ctx.stroke();
 
     ctx.fillStyle = COLOR.muted;
@@ -587,7 +553,7 @@ function render({ model, el: root }) {
     ctx.textAlign = "left";
     ctx.fillText("0°", 0, H - 2);
     ctx.textAlign = "center";
-    ctx.fillText(`Ø ${ref.mean_deg.toFixed(0)}°`, W / 2, H - 2);
+    ctx.fillText(`mean ${ref.mean_deg.toFixed(0)}°`, W / 2, H - 2);
     ctx.textAlign = "right";
     ctx.fillText("180°", W, H - 2);
   }
@@ -598,35 +564,30 @@ function render({ model, el: root }) {
     note.innerHTML = "";
     const plan = state.plan;
     if (!plan) return;
-    const useEnsemble = ensembleBox.checked;
     // Optional blocks: a kernel running an older pigeonpilot omits them, and a
     // missing panel must never cost the flight.
     const reference = plan.reference || {};
     const testMetrics = reference.test_metrics || {};
 
     const truth = el("div", "pp-card");
-    truth.append(el("div", "pp-card-label", "Wahre Heimrichtung"));
-    truth.append(el("div", "pp-card-value", `${plan.true_heading_deg.toFixed(0)}° · Bin ${plan.true_bin}`));
+    truth.append(el("div", "pp-card-label", "True home bearing"));
+    truth.append(el("div", "pp-card-value", `${plan.true_heading_deg.toFixed(0)}° · bin ${plan.true_bin}`));
     truth.style.borderLeftColor = COLOR.truth;
     readout.append(truth);
 
     for (const m of plan.models) {
-      const bin = useEnsemble ? m.ensemble.bin : m.pred_bin;
-      const err = useEnsemble ? m.ensemble.error_deg : m.error_deg;
       const card = el("div", "pp-card");
       card.style.borderLeftColor = COLOR[m.name];
       card.append(el("div", "pp-card-label", m.label));
-      card.append(el("div", "pp-card-value", `${((bin * 360) / plan.heading_bins).toFixed(0)}° · Fehler ${err.toFixed(0)}°`));
+      card.append(
+        el("div", "pp-card-value", `${m.pred_heading_deg.toFixed(0)}° · error ${m.error_deg.toFixed(0)}°`),
+      );
       const test = testMetrics[m.name];
       card.append(
         el(
           "div",
           "pp-card-sub",
-          useEnsemble
-            ? `Streuung ±${m.ensemble.circular_sd_deg.toFixed(0)}° · ${m.ensemble.size} Poisson-Seeds`
-            : test
-              ? `Testset Ø ${test.mean_deg.toFixed(1)}° · Zufall 90°`
-              : "Zufall 90°",
+          test ? `test set mean ${test.mean_deg.toFixed(1)}° · chance 90°` : "chance 90°",
         ),
       );
       if (m.reference) {
@@ -636,43 +597,56 @@ function render({ model, el: root }) {
           el(
             "div",
             "pp-card-sub",
-            `Diese Route ist besser als ${(100 * m.reference.better_than).toFixed(0)}% der ${m.reference.n} Testrouten.`,
+            `Better than ${(100 * m.reference.better_than).toFixed(0)}% of the ${m.reference.n} held-out routes.`,
           ),
         );
-        // Canvas must be in the DOM before it can be sized and painted.
-        requestAnimationFrame(() => drawDistributionStrip(strip, m));
+        // The canvas must be in the DOM before it can be sized and painted.
+        requestAnimationFrame(() => guard("distribution strip", () => drawDistributionStrip(strip, m)));
       }
       readout.append(card);
     }
 
-    const p = plan.preprocessing;
-    const scaled = Math.abs(p.scale_factor - 1) > 1e-6;
+    const p = plan.preprocessing || {};
+    const scaled = Math.abs((p.scale_factor ?? 1) - 1) > 1e-6;
     const bits = [
       scaled
-        ? `Pfad auf Trainingsmaßstab normiert: ×${p.scale_factor.toFixed(2)} (Länge ${p.raw_total_distance.toFixed(1)} → ${p.total_distance.toFixed(1)}), Form unverändert.`
-        : `Pfadlänge ${p.total_distance.toFixed(1)} liegt bereits im Trainingsband (${p.band_min.toFixed(1)}–${p.band_max.toFixed(1)}), nicht skaliert.`,
-      `${p.n_blocks} Richtungsblöcke (Training: max ${p.band_max_blocks}).`,
-      `Der Readout liefert eine Richtung (1 von ${plan.heading_bins} Bins), keinen Rückweg — die Heimstrecke nutzt die wahre Distanz.`,
+        ? `Route normalised to training scale: ×${p.scale_factor.toFixed(2)} ` +
+          `(length ${p.raw_total_distance.toFixed(1)} → ${p.total_distance.toFixed(1)}), shape unchanged.`
+        : `Route length ${(p.total_distance ?? 0).toFixed(1)} already sits inside the training band ` +
+          `(${(p.band_min ?? 0).toFixed(1)}–${(p.band_max ?? 0).toFixed(1)}), not rescaled.`,
+      `${p.n_blocks} heading blocks (training allows up to ${p.band_max_blocks}).`,
+      `The readout returns a direction (1 of ${plan.heading_bins} bins), not a return path — ` +
+        `the homebound leg uses the true distance.`,
     ];
-    if (!p.in_distribution) bits.push("Achtung: außerhalb der Trainingsverteilung.");
+    if (p.in_distribution === false) bits.push("Warning: outside the training distribution.");
     note.append(el("div", null, bits.join(" ")));
 
     // One route is one sample. Without this line a lucky flight reads as a result.
     const h2h = reference.head_to_head || {};
     if (h2h.pair && plan.models.length === 2) {
-      const [first, second] = [plan.models[0].name, plan.models[1].name];
-      const firstWins = h2h[`${first}_better`];
-      const secondWins = h2h[`${second}_better`];
+      const [first, second] = plan.models;
+      const firstWins = h2h[`${first.name}_better`];
+      const secondWins = h2h[`${second.name}_better`];
       if (firstWins != null && secondWins != null) {
-        const warn = el(
-          "div",
-          "pp-warn",
-          `Eine einzelne Route ist kein Ergebnis: über ${reference.n} Testrouten gewinnt ` +
-            `${first} ${(100 * firstWins).toFixed(0)}%, ${second} ${(100 * secondWins).toFixed(0)}%, ` +
-            `${(100 * (h2h.tie ?? 0)).toFixed(0)}% enden gleich. ` +
-            `Dass hier einmal ${second} vorn liegt, ist daher zu erwarten und widerspricht dem Gesamtergebnis nicht.`,
+        const rates =
+          `A single route is not a result: across ${reference.n} held-out routes ` +
+          `${first.name} wins ${(100 * firstWins).toFixed(0)}%, ` +
+          `${second.name} wins ${(100 * secondWins).toFixed(0)}%, ` +
+          `and ${(100 * (h2h.tie ?? 0)).toFixed(0)}% end in a tie.`;
+        // Only call out the upset when it actually happened on this route.
+        const underdog = firstWins >= secondWins ? second : first;
+        const favourite = underdog === second ? first : second;
+        const upset = underdog.error_deg < favourite.error_deg;
+        note.append(
+          el(
+            "div",
+            "pp-warn",
+            upset
+              ? `${rates} ${underdog.name} coming out ahead on this route is therefore ` +
+                `within the expected spread, not a contradiction of the overall result.`
+              : rates,
+          ),
         );
-        note.append(warn);
       }
     }
   }
@@ -682,8 +656,8 @@ function render({ model, el: root }) {
   /**
    * Run a panel's draw code so a failure in one panel cannot strand the widget.
    * An unguarded throw inside the change:plan handler used to abort before
-   * startAnimation(), leaving the status stuck on "Reservoir läuft …" with the
-   * reason visible only in the browser console.
+   * startAnimation(), leaving the status stuck on "Running the reservoir …"
+   * with the reason visible only in the browser console.
    */
   function guard(label, fn) {
     try {
@@ -693,16 +667,16 @@ function render({ model, el: root }) {
       console.error(`PigeonPilot: ${label} failed`, err);
       if (!state.reportedError) {
         state.reportedError = true;
-        setStatus(`Anzeigefehler in "${label}" — Details in der Browser-Konsole. Der Flug läuft weiter.`);
+        setStatus(`Rendering error in "${label}" — see the browser console. The flight continues.`);
       }
       return false;
     }
   }
 
   function redraw() {
-    guard("Feld", drawField);
-    guard("Ringe", drawRings);
-    guard("Raster", drawRaster);
+    guard("field", drawField);
+    guard("rings", drawRings);
+    guard("raster", drawRaster);
   }
 
   function tick(now) {
@@ -714,16 +688,16 @@ function render({ model, el: root }) {
     if (state.phase === PHASE.OUTBOUND && state.clock >= OUTBOUND_FLIGHT_S) {
       state.phase = PHASE.RELEASE;
       state.clock = 0;
-      setStatus("Aussetzpunkt erreicht — Reservoir liest die Heimrichtung ab.");
+      setStatus("Release point reached — the reservoir reads out a home direction.");
     } else if (state.phase === PHASE.RELEASE && state.clock >= RELEASE_HOLD_S) {
       state.phase = PHASE.HOME;
       state.clock = 0;
-      setStatus("Heimflug: A und B fliegen ihre jeweils vorhergesagte Richtung.");
+      setStatus("Homebound: A and B each fly the direction they predicted.");
     } else if (state.phase === PHASE.HOME && state.clock >= HOME_FLIGHT_S) {
       state.phase = PHASE.DONE;
       state.clock = 0;
       state.running = false;
-      setStatus("Fertig — Ringe zeigen das volle Richtungsprofil beider Modelle.");
+      setStatus("Done — the rings show each model's full direction profile.");
     }
     redraw();
     if (state.running) requestAnimationFrame(tick);
@@ -735,7 +709,7 @@ function render({ model, el: root }) {
     state.clock = 0;
     state.running = true;
     state.lastFrame = performance.now();
-    setStatus("Verschleppung: die Taube fliegt, unten feuern die Bins live mit.");
+    setStatus("Displacement: the bird flies while the bins below fire in step.");
     requestAnimationFrame(tick);
   }
 
@@ -753,8 +727,8 @@ function render({ model, el: root }) {
     state.watchdog = setTimeout(() => {
       state.watchdog = null;
       setStatus(
-        "Keine Antwort vom Kernel. Meist hilft: Kernel neu starten und alle Zellen erneut ausführen " +
-          "(der Kernel hält sonst eine ältere pigeonpilot-Version im Speicher).",
+        "No response from the kernel. Usually fixed by restarting the kernel and re-running all cells " +
+          "(a running kernel keeps an older pigeonpilot in memory).",
       );
     }, WATCHDOG_MS);
   }
@@ -781,19 +755,19 @@ function render({ model, el: root }) {
     state.running = false;
     state.stroke = [[0, 0], strokePoint(event)];
     redraw();
-    drawReadout();
+    guard("readout", drawReadout);
   });
 
   fieldCanvas.addEventListener("pointermove", (event) => {
     if (!state.drawing) return;
     state.stroke.push(strokePoint(event));
-    drawField();
+    guard("field", drawField);
   });
 
   const endStroke = () => {
     if (!state.drawing) return;
     state.drawing = false;
-    setStatus(`Pfad erfasst (${state.stroke.length} Punkte) — klick Fly.`);
+    setStatus(`Route captured (${state.stroke.length} points) — press Fly.`);
   };
   fieldCanvas.addEventListener("pointerup", endStroke);
   fieldCanvas.addEventListener("pointercancel", endStroke);
@@ -801,10 +775,10 @@ function render({ model, el: root }) {
   // -------------------------------------------------------------- controls
   flyBtn.addEventListener("click", () => {
     if (state.stroke.length < 2) {
-      setStatus("Erst zeichnen: vom grünen Stern aus mit gedrückter Maustaste.");
+      setStatus("Draw first: press and drag starting at the green home star.");
       return;
     }
-    setStatus("Reservoir läuft …");
+    setStatus("Running the reservoir …");
     model.set("request", { points: state.stroke.map((p) => [p[0], p[1]]), nonce: ++requestNonce });
     model.save_changes();
     startWatchdog();
@@ -822,14 +796,9 @@ function render({ model, el: root }) {
     state.running = false;
     state.reportedError = false;
     state.half = model.get("field_half") || 7;
-    setStatus("Gelöscht — zeichne einen neuen Pfad vom grünen Stern aus.");
+    setStatus("Cleared — draw a new route starting at the green home star.");
     redraw();
-    drawReadout();
-  });
-
-  ensembleBox.addEventListener("change", () => {
-    redraw();
-    drawReadout();
+    guard("readout", drawReadout);
   });
 
   // ----------------------------------------------------------------- comm
@@ -837,7 +806,7 @@ function render({ model, el: root }) {
     const plan = model.get("plan");
     if (!plan || !plan.segments) {
       clearWatchdog();
-      setStatus((plan && plan.error) || "Kein Flugplan erhalten — zeichne noch einmal.");
+      setStatus((plan && plan.error) || "No flight plan received — try drawing again.");
       return;
     }
     clearWatchdog();
@@ -850,13 +819,13 @@ function render({ model, el: root }) {
     state.half = extent * 1.18;
     // Animation first: the flight must not depend on the readout rendering.
     startAnimation();
-    guard("Kennzahlen", drawReadout);
+    guard("readout", drawReadout);
   });
 
   model.on("change:status", () => setStatus(model.get("status")));
 
   redraw();
-  drawReadout();
+  guard("readout", drawReadout);
 }
 
 export default { render };

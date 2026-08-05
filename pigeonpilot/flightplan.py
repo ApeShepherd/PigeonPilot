@@ -45,7 +45,10 @@ from .snn import (
     to_bindsnet_input,
 )
 
-DEFAULT_ENSEMBLE_SIZE = 12
+# Extra Poisson re-draws per model. Off by default: the widget reports the
+# single trial against the held-out error distribution instead, which answers
+# "is this typical?" without another second of inference per click.
+DEFAULT_ENSEMBLE_SIZE = 0
 ENSEMBLE_SEED_STRIDE = 7919
 # Mean |circular error| of a uniform random heading guess.
 CHANCE_ERROR_DEG = 90.0
@@ -240,18 +243,7 @@ def _evaluate_model(
     profile = np.full(heading_bins, float(np.min(scores)), dtype=float)
     profile[classes % heading_bins] = scores
 
-    ensemble_bins: list[int] = []
-    for i in range(max(0, int(ensemble_size))):
-        seed_cfg = replace(config, encoding_seed=int(config.encoding_seed + (i + 1) * ENSEMBLE_SEED_STRIDE))
-        state = run_trial_traced(net, level, seed_cfg).state
-        ensemble_bins.append(int(classifier.predict(state.reshape(1, -1))[0]))
-
-    summary = circular_summary([bin_to_heading_deg(b, heading_bins) for b in ensemble_bins])
-    ensemble_bin = int(round(summary["mean_deg"] / (FULL_CIRCLE_DEG / heading_bins))) % heading_bins
-    _, ensemble_err = circular_bin_error(true_bin, ensemble_bin, heading_bins)
-    histogram = np.bincount(np.asarray(ensemble_bins, dtype=int), minlength=heading_bins)
-
-    return {
+    result = {
         "name": name,
         "label": MODEL_LABELS.get(name, name),
         "pred_bin": pred_bin,
@@ -261,17 +253,31 @@ def _evaluate_model(
         "reservoir_spikes": _spike_pairs(run.reservoir_spikes, limit=6000),
         "reservoir_spike_count": int(run.reservoir_spikes.sum()),
         "reservoir_active_units": int((run.reservoir_spikes.sum(axis=0) > 0).sum()),
-        "ensemble": {
-            "size": len(ensemble_bins),
-            "bins": ensemble_bins,
-            "histogram": [int(v) for v in histogram],
-            "bin": ensemble_bin,
-            "heading_deg": float(summary["mean_deg"]),
-            "error_deg": float(ensemble_err),
-            "circular_sd_deg": float(summary["circular_sd_deg"]),
-            "resultant": float(summary["resultant"]),
-        },
     }
+    if int(ensemble_size) <= 0:
+        return result
+
+    ensemble_bins: list[int] = []
+    for i in range(int(ensemble_size)):
+        seed_cfg = replace(config, encoding_seed=int(config.encoding_seed + (i + 1) * ENSEMBLE_SEED_STRIDE))
+        state = run_trial_traced(net, level, seed_cfg).state
+        ensemble_bins.append(int(classifier.predict(state.reshape(1, -1))[0]))
+
+    summary = circular_summary([bin_to_heading_deg(b, heading_bins) for b in ensemble_bins])
+    ensemble_bin = int(round(summary["mean_deg"] / (FULL_CIRCLE_DEG / heading_bins))) % heading_bins
+    _, ensemble_err = circular_bin_error(true_bin, ensemble_bin, heading_bins)
+    histogram = np.bincount(np.asarray(ensemble_bins, dtype=int), minlength=heading_bins)
+    result["ensemble"] = {
+        "size": len(ensemble_bins),
+        "bins": ensemble_bins,
+        "histogram": [int(v) for v in histogram],
+        "bin": ensemble_bin,
+        "heading_deg": float(summary["mean_deg"]),
+        "error_deg": float(ensemble_err),
+        "circular_sd_deg": float(summary["circular_sd_deg"]),
+        "resultant": float(summary["resultant"]),
+    }
+    return result
 
 
 def build_flight_plan(

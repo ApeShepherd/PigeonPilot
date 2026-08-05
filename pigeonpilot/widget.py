@@ -41,6 +41,7 @@ except ImportError as exc:  # pragma: no cover - import guard
 
 _STATIC = pathlib.Path(__file__).parent / "static"
 DEFAULT_FIELD_HALF = 7.0
+TOO_SHORT_MESSAGE = "Route too short — draw further away from the home star."
 
 
 class PigeonPlayground(anywidget.AnyWidget):
@@ -55,8 +56,11 @@ class PigeonPlayground(anywidget.AnyWidget):
         Which pigeons to evaluate on the drawn route. Both by default, since
         the A/B comparison is the point of the demo.
     ensemble_size :
-        Poisson re-draws behind the "Seed-Ensemble" toggle. Costs roughly
-        30 ms per draw per model.
+        Extra Poisson re-draws per model, off by default. The widget places
+        each flight inside the held-out error distribution instead, which is
+        the honest answer to "was that a fluke?" and costs nothing per click.
+        Set it above zero only if you want the per-stroke spread in
+        ``last_plan`` for the write-up.
     field_half :
         Half-width of the drawing field in world units. Defaults to a little
         beyond the curriculum's farthest release point, so the canvas invites
@@ -112,7 +116,7 @@ class PigeonPlayground(anywidget.AnyWidget):
         nonce = request.get("nonce", 0)
         points = request.get("points") or []
         if len(points) < 2:
-            self.plan = {"nonce": nonce, "error": "Pfad zu kurz — zeichne weiter vom Stern weg."}
+            self.plan = {"nonce": nonce, "error": TOO_SHORT_MESSAGE}
             return
         self.busy = True
         try:
@@ -126,13 +130,16 @@ class PigeonPlayground(anywidget.AnyWidget):
             )
         except Exception:  # surface failures in the widget, not only the log
             traceback.print_exc()
-            self.plan = {"nonce": nonce, "error": "Inferenz fehlgeschlagen — Traceback im Notebook-Log."}
+            self.plan = {
+                "nonce": nonce,
+                "error": "Inference failed — see the traceback in the notebook log.",
+            }
             return
         finally:
             self.busy = False
 
         if plan is None:
-            self.plan = {"nonce": nonce, "error": "Pfad zu kurz — zeichne weiter vom Stern weg."}
+            self.plan = {"nonce": nonce, "error": TOO_SHORT_MESSAGE}
             return
         self.plan = {**plan, "nonce": nonce}
 
@@ -144,7 +151,7 @@ class PigeonPlayground(anywidget.AnyWidget):
     def self_test(self, verbose: bool = True) -> dict[str, Any]:
         """Run a synthetic stroke through the full pipeline and report the outcome.
 
-        Use this when the widget sits on "Reservoir läuft …": it exercises the
+        Use this when the widget sits on "Running the reservoir …": it exercises the
         same code path as a real flight without needing the browser, so it
         separates a kernel-side failure from a frontend one.
         """

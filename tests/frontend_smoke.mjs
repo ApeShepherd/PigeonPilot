@@ -2,9 +2,9 @@
 //
 // Runs render() against a real flight plan in jsdom with a stubbed 2D context,
 // then drives the animation phases. Catches the class of bug that leaves the
-// widget stuck on "Reservoir läuft …": an exception in the change:plan handler
-// aborts before the animation ever starts, and the browser console is the only
-// place it shows up.
+// widget stuck on "Running the reservoir …": an exception in the change:plan
+// handler aborts before the animation ever starts, and the browser console is
+// the only place it shows up.
 //
 //   npm install --no-save jsdom
 //   node tests/frontend_smoke.mjs [path/to/plan.json]
@@ -102,7 +102,7 @@ step("render() mounts", () => widget.render({ model, el: root }));
 
 const statusText = () => root.querySelector(".pp-status")?.textContent ?? "";
 step("initial status is the draw prompt", () => {
-  if (!statusText().includes("Zeichne")) throw new Error(`unexpected status: ${statusText()}`);
+  if (!statusText().includes("Draw a route")) throw new Error(`unexpected status: ${statusText()}`);
 });
 
 const buttons = [...root.querySelectorAll("button")];
@@ -114,14 +114,14 @@ const click = (label) => {
 
 step("Fly without a stroke warns instead of hanging", () => {
   click("Fly");
-  if (!statusText().includes("Erst zeichnen")) throw new Error(`unexpected status: ${statusText()}`);
+  if (!statusText().includes("Draw first")) throw new Error(`unexpected status: ${statusText()}`);
 });
 
 step("plan arrival starts the animation", () => {
   model.set("plan", plan);
   const text = statusText();
-  if (text.includes("Reservoir läuft")) throw new Error("stuck on 'Reservoir läuft' — change:plan aborted");
-  if (!text.includes("Verschleppung")) throw new Error(`animation did not start, status: ${text}`);
+  if (text.includes("Running the reservoir")) throw new Error("stuck on 'Running the reservoir' — change:plan aborted");
+  if (!text.includes("Displacement")) throw new Error(`animation did not start, status: ${text}`);
 });
 
 step("animation frames run without throwing", () => {
@@ -140,29 +140,27 @@ step("readout cards rendered", () => {
   if (root.querySelectorAll(".pp-strip").length !== plan.models.length) throw new Error("distribution strips missing");
 });
 
-step("ensemble toggle redraws", () => {
-  const box = root.querySelector('input[type="checkbox"]');
-  box.checked = true;
-  box.dispatchEvent(new window.Event("change", { bubbles: true }));
+step("no ensemble controls are left in the toolbar", () => {
+  if (root.querySelector('input[type="checkbox"]')) throw new Error("ensemble toggle still present");
 });
 
 step("error plan shows the message", () => {
-  model.set("plan", { nonce: 99, error: "Pfad zu kurz" });
-  if (!statusText().includes("Pfad zu kurz")) throw new Error(`unexpected status: ${statusText()}`);
+  model.set("plan", { nonce: 99, error: "Route too short" });
+  if (!statusText().includes("Route too short")) throw new Error(`unexpected status: ${statusText()}`);
 });
 
 step("Clear resets", () => click("Clear"));
 
 // A kernel that still runs an older pigeonpilot sends a plan without the
 // reference block. The widget must animate anyway rather than abort in
-// change:plan and sit on "Reservoir läuft …".
+// change:plan and sit on "Running the reservoir …".
 step("plan without reference block still animates", () => {
   const legacy = structuredClone(plan);
   legacy.models.forEach((m) => delete m.reference);
   delete legacy.reference.head_to_head;
   delete legacy.reference.n;
   model.set("plan", legacy);
-  if (!statusText().includes("Verschleppung")) throw new Error(`did not start: ${statusText()}`);
+  if (!statusText().includes("Displacement")) throw new Error(`did not start: ${statusText()}`);
 });
 
 step("plan with no reference key at all still animates", () => {
@@ -170,7 +168,18 @@ step("plan with no reference key at all still animates", () => {
   ancient.models.forEach((m) => delete m.reference);
   delete ancient.reference;
   model.set("plan", ancient);
-  if (!statusText().includes("Verschleppung")) throw new Error(`did not start: ${statusText()}`);
+  if (!statusText().includes("Displacement")) throw new Error(`did not start: ${statusText()}`);
+});
+
+// The ensemble block is gone from the default plan; a plan that still carries
+// one (ensemble_size > 0) must not change what the frontend draws.
+step("plan carrying an ensemble block is ignored gracefully", () => {
+  const withEnsemble = structuredClone(plan);
+  withEnsemble.models.forEach((m) => {
+    m.ensemble = { size: 4, bins: [0, 1, 2, 3], histogram: [], bin: 1, heading_deg: 10, error_deg: 5, circular_sd_deg: 20, resultant: 0.9 };
+  });
+  model.set("plan", withEnsemble);
+  if (!statusText().includes("Displacement")) throw new Error(`did not start: ${statusText()}`);
 });
 
 if (errors.length) {

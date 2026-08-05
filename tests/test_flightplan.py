@@ -102,13 +102,18 @@ def reference(bundle):
 
 
 @pytest.fixture(scope="module")
-def plan(bundle, reference):
-    from pigeonpilot.flightplan import build_flight_plan
-
+def stroke():
+    """A hand-drawn arc, jitter included, as the canvas would deliver it."""
     rng = np.random.default_rng(0)
     t = np.linspace(0.0, 1.0, 150)
-    stroke = np.stack([4 * np.sin(2.5 * t), 4 * t], axis=1) + rng.normal(0.0, 0.08, (150, 2))
-    return build_flight_plan(bundle, stroke, ensemble_size=4, reference=reference)
+    return np.stack([4 * np.sin(2.5 * t), 4 * t], axis=1) + rng.normal(0.0, 0.08, (150, 2))
+
+
+@pytest.fixture(scope="module")
+def plan(bundle, reference, stroke):
+    from pigeonpilot.flightplan import build_flight_plan
+
+    return build_flight_plan(bundle, stroke, reference=reference)
 
 
 def test_reference_reproduces_the_stored_training_metrics(bundle, reference):
@@ -197,12 +202,23 @@ def test_every_model_reports_a_full_score_profile(plan):
         assert int(np.argmax(model["scores"])) == model["pred_bin"]
 
 
-def test_ensemble_histogram_counts_every_draw(plan):
+def test_default_plan_carries_no_ensemble(plan):
+    """The demo reports one trial against the test distribution, not a seed spread."""
     for model in plan["models"]:
+        assert "ensemble" not in model
+
+
+def test_ensemble_histogram_counts_every_draw(bundle, stroke):
+    """Opt-in path: ensemble_size > 0 still yields a consistent seed histogram."""
+    from pigeonpilot.flightplan import build_flight_plan
+
+    opted_in = build_flight_plan(bundle, stroke, ensemble_size=4)
+    for model in opted_in["models"]:
         ensemble = model["ensemble"]
+        assert ensemble["size"] == 4
         assert sum(ensemble["histogram"]) == ensemble["size"]
-        assert len(ensemble["histogram"]) == plan["heading_bins"]
-        assert 0 <= ensemble["bin"] < plan["heading_bins"]
+        assert len(ensemble["histogram"]) == opted_in["heading_bins"]
+        assert 0 <= ensemble["bin"] < opted_in["heading_bins"]
 
 
 def test_release_point_closes_the_geometry(plan):
