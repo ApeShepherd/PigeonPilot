@@ -82,12 +82,21 @@ DIFFICULTY_SPECS: dict[Difficulty, DifficultySpec] = {
 }
 
 # Few epochs on easy (avoid +180° shortcut); more on first real PI stages.
-DEFAULT_EPOCHS_PER_DIFFICULTY: dict[Difficulty, int] = {
+DEFAULT_EPOCHS_PER_DIFFICULTY_OLD: dict[Difficulty, int] = {
     "easy": 15,
     "medium": 30,
     "hard": 25,
     "expert": 20,
     "extreme": 20,
+}
+
+
+DEFAULT_EPOCHS_PER_DIFFICULTY: dict[Difficulty, int] = {
+    "easy": 3,
+    "medium": 3,
+    "hard": 3,
+    "expert": 3,
+    "extreme": 3,
 }
 
 # Short mixed rehearsal after the curriculum ladder (forgetting control).

@@ -1,0 +1,148 @@
+
+
+
+=== Stage 1: FEEDFORWARD_STRENGTH + INHIB_WEIGHT_RATIO ===
+Tested:
+FF_STRENGTH_GRID = [10, 20, 30, 40, 50, 60, 70, 80, 90]
+INHIB_WEIGHT_RATIO_GRID = [ 2.0, 4.0, 6.0, 8.0, 10.0]
+
+We want a coverage of 20-30 percent
+FEEDFORWARD_STRENGTH = 50 and INHIB_WEIGHT_RATIO = 6.0 seems to be good
+
+
+   FF | ratio | easy_cov | hard_sat | max_burst | n_avalanche | n_silent | ok?
+------------------------------------------------------------------------------
+   10 |   2.0 |    0.00% |    0.00% |         0 |           0 |       15 | no
+   10 |   4.0 |    0.00% |    0.00% |         0 |           0 |       15 | no
+   10 |   6.0 |    0.00% |    0.00% |         0 |           0 |       15 | no
+   10 |   8.0 |    0.00% |    0.00% |         0 |           0 |       15 | no
+   10 |  10.0 |    0.00% |    0.00% |         0 |           0 |       15 | no
+   20 |   2.0 |    0.00% |    0.00% |         1 |           0 |       14 | no
+   20 |   4.0 |    0.00% |    0.00% |         1 |           0 |       14 | no
+   20 |   6.0 |    0.00% |    0.00% |         1 |           0 |       14 | no
+   20 |   8.0 |    0.00% |    0.00% |         1 |           0 |       14 | no
+   20 |  10.0 |    0.00% |    0.00% |         1 |           0 |       14 | no
+   30 |   2.0 |    1.90% |    0.00% |        93 |           0 |        4 | no
+   30 |   4.0 |    1.90% |    0.00% |        82 |           0 |        4 | no
+   30 |   6.0 |    1.87% |    0.00% |        82 |           0 |        4 | no
+   30 |   8.0 |    1.87% |    0.00% |        84 |           0 |        4 | no
+   30 |  10.0 |    1.87% |    0.00% |        85 |           0 |        4 | no
+   40 |   2.0 |   11.03% |    0.00% |       139 |           0 |        0 | no
+   40 |   4.0 |   11.07% |    0.00% |       162 |           0 |        0 | no
+   40 |   6.0 |   10.27% |    0.00% |       124 |           0 |        0 | no
+   40 |   8.0 |   10.30% |    0.00% |       121 |           0 |        0 | no
+   40 |  10.0 |   10.27% |    0.00% |       120 |           0 |        0 | no
+   50 |   2.0 |   24.60% |    0.00% |       162 |           0 |        0 | yes
+   50 |   4.0 |   25.80% |    0.00% |       156 |           0 |        0 | yes
+   50 |   6.0 |   22.90% |    0.00% |       166 |           0 |        0 | yes
+   50 |   8.0 |   22.87% |    0.00% |       165 |           0 |        0 | yes
+   50 |  10.0 |   22.77% |    0.00% |       165 |           0 |        0 | yes
+   60 |   2.0 |   38.77% |    0.00% |       200 |           0 |        0 | yes
+   60 |   4.0 |   39.00% |    0.00% |       203 |           0 |        0 | yes
+   60 |   6.0 |   36.50% |    0.00% |       190 |           0 |        0 | yes
+   60 |   8.0 |   36.47% |    0.00% |       186 |           0 |        0 | yes
+   60 |  10.0 |   36.47% |    0.00% |       186 |           0 |        0 | yes
+   70 |   2.0 |   48.37% |    0.00% |       219 |           0 |        0 | yes
+   70 |   4.0 |   47.60% |    0.00% |       248 |           0 |        0 | yes
+   70 |   6.0 |   45.40% |    0.00% |       213 |           0 |        0 | yes
+   70 |   8.0 |   45.33% |    0.00% |       213 |           0 |        0 | yes
+   70 |  10.0 |   45.40% |    0.00% |       212 |           0 |        0 | yes
+   80 |   2.0 |   55.33% |    0.00% |       285 |           0 |        0 | no
+   80 |   4.0 |   54.93% |    0.00% |       280 |           0 |        0 | no
+   80 |   6.0 |   52.30% |    0.00% |       250 |           0 |        0 | no
+   80 |   8.0 |   52.27% |    0.00% |       252 |           0 |        0 | no
+   80 |  10.0 |   52.23% |    0.00% |       253 |           0 |        0 | no
+   90 |   2.0 |   59.87% |    0.00% |       308 |           2 |        0 | no
+   90 |   4.0 |   60.17% |    0.00% |       282 |           0 |        0 | no
+   90 |   6.0 |   57.10% |    0.00% |       284 |           0 |        0 | no
+   90 |   8.0 |   57.07% |    0.00% |       285 |           0 |        0 | no
+   90 |  10.0 |   57.07% |    0.00% |       286 |           0 |        0 | no
+
+=== Stage 2: RIDGE_ALPHA (cross-validated on TRAIN split only) ===
+     alpha | cv_mean_deg | cv_accuracy
+--------------------------------------
+     1e-06 |       53.02 |      15.54%
+     1e-05 |       47.08 |      17.98%
+    0.0001 |       39.66 |      20.77%
+     0.001 |       34.54 |      22.87%
+      0.01 |       34.05 |      22.17%
+       0.1 |       39.44 |      20.07%
+       1.0 |       79.73 |       5.41%
+      10.0 |       87.82 |       4.02%
+     100.0 |       87.80 |       4.02%
+    1000.0 |       87.80 |       4.02%
+
+ RIDGE_ALPHA = 0.01 has lowest mean error - 34.05 degrees
+
+
+
+ STDP PARAMETERS
+
+STDP_NU = (0.001, 0.001)
+STDP_TC_PRE  = 20
+STDP_TC_POST = 20
+
+
+
+dataset: 720 levels | train=573 test=147 | velocity=0.0091
+fixed from Reservoir A: FF=50, scale=0.9, ridge_alpha=0.01, inhib_fraction=0.2, inhib_ratio=1.0
+
+=== Stage 1: STDP_NU ===
+Fixed init from Reservoir A's tuning; TC held at baseline 20.0 (searched in Stage 2). Sweeping (nu_pre, nu_post) pairs directly rather than one overall multiplier — the notebook's 100:1 default imbalance between depression and potentiation strength made potentiation dominate regardless of overall magnitude, eroding inhibitory weights to zero even at 10x weaker than default. This grid instead varies the RATIO between them, from balanced (1:1) up to the original imbalance (100:1). Each candidate gets a short plastic exposure (1 epoch per difficulty, no mixed rehearsal), then checks: did the weights actually move (mean |Δw|), and is the reservoir's activity still healthy afterward (same avalanche/coverage diagnostic as tune_reservoir_a.py).
+
+target: mean |Δw| > 0.0001 (real learning happened), easy coverage in (0.2, 0.5), hard saturation <= 0.25, no probed level exceeds 30 (30%) neurons firing in one step
+
+  nu_pre |  nu_post |   ratio |    dw_ff |   dw_rec | easy_cov | hard_sat | max_burst | n_avalanche | ok?
+---------------------------------------------------------------------------------------------------------
+ 1.0e-03 |  1.0e-03 |     1.0 |  0.09560 |  0.11126 |   33.33% |    0.00% |        23 |           0 | yes
+ 3.0e-04 |  1.0e-03 |     3.3 |  0.29431 |  3.23095 |  100.00% |    0.00% |        97 |          15 | no
+ 1.0e-04 |  1.0e-03 |    10.0 |  0.31536 |  4.67128 |  100.00% |    0.00% |        98 |          15 | no
+ 3.0e-05 |  1.0e-03 |    33.3 |  0.32343 |  5.26956 |  100.00% |    0.00% |        98 |          15 | no
+ 1.0e-05 |  1.0e-03 |   100.0 |  0.32460 |  5.43769 |  100.00% |    0.00% |        98 |          15 | no
+
+-> chosen STDP_NU = (0.001, 0.001) (ratio 1.0:1 — most balanced candidate meeting target, largest magnitude among ties)
+
+The 3 numbers that actually decide it:
+
+max_burst: 23 vs 97-98 (out of 100) — balanced barely moves the reservoir at once, imbalanced fires nearly the whole thing in one instant.
+n_avalanche: 0 vs 15 (every single test level) — the burst wasn't a fluke, it happened every time once imbalanced.
+easy_cov: 33% (healthy, input-dependent) vs 100% (everyone fires regardless of input, so it can't tell inputs apart).
+Everything flips together the moment nu_pre ≠ nu_post — no gradual decline, just a hard on/off switch at "balanced or not."
+
+=== Stage 2: STDP_TC_PRE / STDP_TC_POST ===
+STDP_NU fixed at (0.001, 0.001) (Stage 1 winner). Each candidate gets the same short exposure as Stage 1, then we fit RidgeClassifier(alpha=0.01, fixed) on a 150-level stratified train subsample and cross-validate. This is a downstream-performance question, not a stability one (Stage 1 already screened nu for stability), so tc is judged by what actually helps the readout.
+
+    tc | cv_mean_deg | cv_accuracy
+----------------------------------
+  10.0 |       60.53 |       6.00%
+  20.0 |       60.53 |       6.00%
+  40.0 |       60.53 |       6.00%
+  80.0 |       60.53 |       6.00%
+
+-> chosen STDP_TC_PRE = STDP_TC_POST = 10.0 (lowest mean CV circular error: 60.53 deg)
+
+=== Stage 3: confirm training schedule (full curriculum) ===
+STDP_NU=(0.001, 0.001), STDP_TC_PRE=STDP_TC_POST=10.0 (Stage 1/2 winners, fixed). STDP_EPOCHS_PER_DIFFICULTY / STDP_MIXED_EPOCHS_AFTER are NOT searched — this runs the real, full schedule ({'easy': 3, 'medium': 3, 'hard': 3, 'expert': 3, 'extreme': 3}, mixed_after=6) once, to confirm it's adequate rather than optimize it. This is the expensive part — full curriculum, not a short exposure.
+
+  ... 1000 plastic trials (phase=hard, epoch=2)
+  ... 2000 plastic trials (phase=mixed, epoch=0)
+  ... 3000 plastic trials (phase=mixed, epoch=2)
+  ... 4000 plastic trials (phase=mixed, epoch=3)
+  ... 5000 plastic trials (phase=mixed, epoch=5)
+trained on 5157 plastic trials total
+
+post-training health check: 0/15 probed levels avalanche-like (PASS)
+
+collecting reservoir states for 573 train + 147 test levels...
+
+Final Model B test performance (n=147): mean circular error = 56.73 deg | accuracy = 21.77%
+For reference, Reservoir A (fixed, no STDP) scored 35.17 deg / 22.45% on the same test split (from tune_reservoir_a.py) — compare against that, not chance, to see whether STDP actually helped.
+
+=== Recommended Reservoir B (STDP) hyperparameters ===
+STDP_NU      = (0.001, 0.001)  (searched, Stage 1)
+STDP_TC_PRE  = 10.0  (searched, Stage 2)
+STDP_TC_POST = 10.0  (searched, Stage 2, tied to STDP_TC_PRE)
+STDP_EPOCHS_PER_DIFFICULTY / STDP_MIXED_EPOCHS_AFTER = pigeonpilot.curriculum defaults (confirmed in Stage 3, not searched)
+
+Fixed (from Reservoir A's tuning, not touched here): FEEDFORWARD_STRENGTH=50, RESERVOIR_SCALE=0.9, RIDGE_ALPHA=0.01, INHIB_FRACTION=0.2, INHIB_WEIGHT_RATIO=1.0
+Final test performance: 56.73 deg / 21.77% accuracy
