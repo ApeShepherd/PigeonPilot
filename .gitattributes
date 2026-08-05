@@ -1,0 +1,4 @@
+# Large checkpoint blobs — use Git LFS (especially 10k-neuron runs).
+# One-time per machine:  git lfs install
+outputs/checkpoints/**/*.pt filter=lfs diff=lfs merge=lfs -text
+outputs/checkpoints/**/*.joblib filter=lfs diff=lfs merge=lfs -text

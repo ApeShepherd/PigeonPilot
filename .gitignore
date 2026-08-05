@@ -31,13 +31,23 @@ coverage.xml
 .DS_Store
 Thumbs.db
 
-# Local data / outputs
+# Local data / outputs — share trained runs under checkpoints/
 data/
-outputs/
-*.pkl
-*.pt
-*.npy
+outputs/*
+!outputs/checkpoints/
+!outputs/checkpoints/**
 figures/
 runs/
 logs/
 *.log
+
+# Ignore weight dumps everywhere…
+*.pkl
+*.pt
+*.npy
+# …except shared SNN runs (A+B) for the team / playground
+!outputs/checkpoints/**/*.pt
+!outputs/checkpoints/**/*.joblib
+!outputs/checkpoints/**/*.json
+!outputs/checkpoints/**/*.txt
+!outputs/checkpoints/**/README.md

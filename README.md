@@ -120,6 +120,22 @@ jupyter notebook Playground.ipynb
 # first code cell uses %matplotlib widget (needs ipympl)
 ```
 
+### Sharing trained models (A + B)
+
+Checkpoints live in `outputs/checkpoints/<run_name>/` and **are meant to be committed**
+(so teammates can pull the real weights). Large `.pt` / `.joblib` files use Git LFS:
+
+```bash
+git lfs install   # once per machine
+# after Models.ipynb Step 10:
+git add outputs/checkpoints/<run_name> outputs/checkpoints/latest.txt
+git commit -m "Add trained run <run_name>"
+git push
+```
+
+Teammate: `git pull` (LFS downloads weights), then in `Playground.ipynb` set
+`RUN_NAME = "<run_name>"` or `"latest"`.
+
 In Cursor: `Cmd+Shift+P` → **Jupyter: Restart Kernel and Run All Cells**.
 
 ## Status
