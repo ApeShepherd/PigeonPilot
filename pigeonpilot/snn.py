@@ -107,13 +107,19 @@ class ReservoirConfig:
 
 @dataclass
 class CheckpointBundle:
-    """Loaded A/B networks, classifiers, config, and optional jury metrics."""
+    """Loaded network(s), classifier(s), config, and optional jury metrics.
+
+    Model B (STDP) is optional — a reservoir-only run (no plasticity, see
+    e.g. Reservoir_only_staged.ipynb) saves/loads with network_b=None,
+    classifier_b=None. Playground's model="A" path never touches B, so an
+    A-only bundle works there too; only model="B"/"both" require B.
+    """
 
     config: ReservoirConfig
     network_a: Any
-    network_b: Any
     classifier_a: Any
-    classifier_b: Any
+    network_b: Any = None
+    classifier_b: Any = None
     metrics: dict[str, Any] = field(default_factory=dict)
     # Directory this run was loaded from, so derived artefacts can be cached beside it.
     source: Optional[Path] = None
@@ -381,17 +387,18 @@ def save_checkpoint(
     directory: str | Path,
     *,
     network_a,
-    network_b,
     classifier_a,
-    classifier_b,
+    network_b=None,
+    classifier_b=None,
     config: ReservoirConfig,
     metrics: Optional[Mapping[str, Any]] = None,
     run_name: Optional[str] = None,
 ) -> Path:
-    """Persist A/B weights, sklearn classifiers, config, and optional metrics.
+    """Persist reservoir weights, sklearn classifier(s), config, and optional metrics.
 
-    Prefer ``save_run(name, ...)`` so multiple trainings sit side by side under
-    ``outputs/checkpoints/<name>/``.
+    Model B is optional — pass network_b=None (the default) for a reservoir-only
+    (no-plasticity) run; only A gets written. Prefer ``save_run(name, ...)`` so
+    multiple trainings sit side by side under ``outputs/checkpoints/<name>/``.
     """
     ensure_bindsnet()
     import joblib
@@ -401,21 +408,21 @@ def save_checkpoint(
     root.mkdir(parents=True, exist_ok=True)
 
     w_ff_a, w_res_a = _connection_weights(network_a)
-    w_ff_b, w_res_b = _connection_weights(network_b)
-    torch.save(
-        {
-            "A": {"w_ff": w_ff_a, "w_res": w_res_a},
-            "B": {"w_ff": w_ff_b, "w_res": w_res_b},
-        },
-        root / "weights.pt",
-    )
+    weights_blob = {"A": {"w_ff": w_ff_a, "w_res": w_res_a}}
+    if network_b is not None:
+        w_ff_b, w_res_b = _connection_weights(network_b)
+        weights_blob["B"] = {"w_ff": w_ff_b, "w_res": w_res_b}
+    torch.save(weights_blob, root / "weights.pt")
+
     joblib.dump(classifier_a, root / "classifier_a.joblib")
-    joblib.dump(classifier_b, root / "classifier_b.joblib")
+    if classifier_b is not None:
+        joblib.dump(classifier_b, root / "classifier_b.joblib")
 
     meta = {
         "name": run_name or root.name,
         "config": config.to_jsonable(),
         "metrics": dict(metrics or {}),
+        "has_model_b": network_b is not None,
     }
     (root / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     return root
@@ -425,20 +432,23 @@ def save_run(
     name: str,
     *,
     network_a,
-    network_b,
     classifier_a,
-    classifier_b,
+    network_b=None,
+    classifier_b=None,
     config: ReservoirConfig,
     metrics: Optional[Mapping[str, Any]] = None,
     root: str | Path | None = None,
     set_as_latest: bool = True,
 ) -> Path:
-    """Save one training run (both pigeons A and B) under ``checkpoints/<name>/``.
+    """Save one training run under ``checkpoints/<name>/``.
+
+    Model B is optional — omit network_b/classifier_b (or pass None) for a
+    reservoir-only run (no plasticity).
 
     Examples::
 
-        save_run("n10000_jury", network_a=..., network_b=..., ...)
-        save_run("n1000_smoke", ...)   # keeps the previous jury run intact
+        save_run("n10000_jury", network_a=..., network_b=..., ...)  # both pigeons
+        save_run("n1000_reservoir_only", network_a=..., classifier_a=..., config=...)
     """
     if name in {"", "latest", _LATEST_POINTER}:
         raise ValueError(f"Invalid run name: {name!r}")
@@ -449,8 +459,8 @@ def save_run(
     path = save_checkpoint(
         base / name,
         network_a=network_a,
-        network_b=network_b,
         classifier_a=classifier_a,
+        network_b=network_b,
         classifier_b=classifier_b,
         config=config,
         metrics=metrics,
@@ -462,7 +472,12 @@ def save_run(
 
 
 def load_checkpoint(directory: str | Path) -> CheckpointBundle:
-    """Rebuild frozen A/B networks and load classifiers from a run directory."""
+    """Rebuild frozen network(s) and load classifier(s) from a run directory.
+
+    Model B is loaded only if it was saved (reservoir-only runs have no "B"
+    entry in weights.pt / no classifier_b.joblib) — bundle.network_b and
+    bundle.classifier_b are None in that case.
+    """
     ensure_bindsnet()
     import joblib
     import torch
@@ -476,18 +491,24 @@ def load_checkpoint(directory: str | Path) -> CheckpointBundle:
     network_a = build_reservoir(
         config=config, plastic=False, w_ff=blob["A"]["w_ff"], w_res=blob["A"]["w_res"]
     )
-    network_b = build_reservoir(
-        config=config, plastic=False, w_ff=blob["B"]["w_ff"], w_res=blob["B"]["w_res"]
-    )
     network_a.train(False)
-    network_b.train(False)
+
+    network_b = None
+    classifier_b = None
+    classifier_b_path = root / "classifier_b.joblib"
+    if "B" in blob and classifier_b_path.exists():
+        network_b = build_reservoir(
+            config=config, plastic=False, w_ff=blob["B"]["w_ff"], w_res=blob["B"]["w_res"]
+        )
+        network_b.train(False)
+        classifier_b = joblib.load(classifier_b_path)
 
     return CheckpointBundle(
         config=config,
         network_a=network_a,
-        network_b=network_b,
         classifier_a=joblib.load(root / "classifier_a.joblib"),
-        classifier_b=joblib.load(root / "classifier_b.joblib"),
+        network_b=network_b,
+        classifier_b=classifier_b,
         metrics=dict(meta.get("metrics") or {}),
         source=root,
     )

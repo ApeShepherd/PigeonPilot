@@ -50,10 +50,62 @@ By difficulty (mean °):
 
 ![img_3.png](img_3_1000_neurons.png)
 
+stage | trained on                               | tested on |    n |    A ° |  A acc |    B ° |  B acc
+-------------------------------------------------------------------------------------------------------
+    1 | easy                                     | easy     |   36 |   22.8 |  77.8% |   17.2 |  77.8%
+    2 | easy + medium                            | easy     |   36 |   16.7 |  80.6% |   16.4 |  77.8%
+    2 | easy + medium                            | medium   |   28 |   25.0 |  10.7% |   37.9 |  14.3%
+    3 | easy + medium + hard                     | easy     |   36 |   17.8 |  77.8% |   15.0 |  77.8%
+    3 | easy + medium + hard                     | medium   |   28 |   26.8 |   7.1% |   30.7 |  14.3%
+    3 | easy + medium + hard                     | hard     |   26 |   26.5 |   0.0% |   48.5 |   0.0%
+    4 | easy + medium + hard + expert            | easy     |   36 |   17.8 |  77.8% |   14.2 |  77.8%
+    4 | easy + medium + hard + expert            | medium   |   28 |   25.0 |  10.7% |   31.1 |  14.3%
+    4 | easy + medium + hard + expert            | hard     |   26 |   26.2 |   3.8% |   41.2 |   3.8%
+    4 | easy + medium + hard + expert            | expert   |   29 |   40.7 |   3.4% |   65.5 |   3.4%
+    5 | easy + medium + hard + expert + extreme  | easy     |   36 |   21.1 |  75.0% |   14.2 |  77.8%
+    5 | easy + medium + hard + expert + extreme  | medium   |   28 |   28.6 |   7.1% |   30.4 |  10.7%
+    5 | easy + medium + hard + expert + extreme  | hard     |   26 |   28.5 |   7.7% |   49.6 |   0.0%
+    5 | easy + medium + hard + expert + extreme  | expert   |   29 |   41.7 |   3.4% |   59.0 |   3.4%
+    5 | easy + medium + hard + expert + extreme  | extreme  |   28 |   53.6 |   3.6% |   83.9 |   3.6%
 
+![img_1.png](img_4_1000_neurons_levels.png)
 
 
 # ONLY RESERVOIR
+
+## NEURON SIZE 10000
+
+=== Test angular error (circular) ===
+Pigeon A (fixed):  mean error 31.6° ± 35.0°  | exact-bin acc 25.2%
+
+By difficulty (mean °):
+  easy      A= 18.3°   n=36
+  medium    A= 22.5°   n=28
+  hard      A= 19.2°   n=26
+  expert    A= 39.3°   n=29
+  extreme   A= 61.4°   n=28
+
+![img_5.png](img_5_10000_neurons.png)
+
+stage | trained on                               | tested on |    n |    A ° |  A acc
+-------------------------------------------------------------------------------------
+    1 | easy                                     | easy     |   36 |   17.2 |  80.6%
+    2 | easy + medium                            | easy     |   36 |   17.2 |  80.6%
+    2 | easy + medium                            | medium   |   28 |   23.2 |  17.9%
+    3 | easy + medium + hard                     | easy     |   36 |   18.1 |  75.0%
+    3 | easy + medium + hard                     | medium   |   28 |   25.0 |  14.3%
+    3 | easy + medium + hard                     | hard     |   26 |   22.7 |  11.5%
+    4 | easy + medium + hard + expert            | easy     |   36 |   19.4 |  69.4%
+    4 | easy + medium + hard + expert            | medium   |   28 |   23.6 |  21.4%
+    4 | easy + medium + hard + expert            | hard     |   26 |   20.0 |  11.5%
+    4 | easy + medium + hard + expert            | expert   |   29 |   41.7 |   3.4%
+    5 | easy + medium + hard + expert + extreme  | easy     |   36 |   18.3 |  72.2%
+    5 | easy + medium + hard + expert + extreme  | medium   |   28 |   22.5 |  21.4%
+    5 | easy + medium + hard + expert + extreme  | hard     |   26 |   19.2 |  11.5%
+    5 | easy + medium + hard + expert + extreme  | expert   |   29 |   39.3 |   3.4%
+    5 | easy + medium + hard + expert + extreme  | extreme  |   28 |   61.4 |   3.6%
+
+![img_6.png](img_6_10000_neurons_levels.png)
 
 10.000 neurons:
 
