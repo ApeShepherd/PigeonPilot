@@ -1,8 +1,10 @@
 # Install this package in editable mode with all dependencies:
-#   pip install -e ".[snn,dev]"
+#   pip install -e ".[snn,dev,playground]"
 #
 # Core dependencies (installed automatically): numpy, matplotlib
-# Extra "snn"  -> torch, bindsnet, scikit-learn, joblib
-# Extra "dev"  -> pytest, jupyter, ipykernel, ipympl, ipywidgets
+# Extra "snn"        -> torch, bindsnet, scikit-learn, joblib
+# Extra "dev"        -> pytest, jupyter, ipykernel, ipympl, ipywidgets
+# Extra "playground" -> anywidget, ipywidgets  (live draw → predict widget)
 #
-# Playground.ipynb needs: pip install -e ".[snn,dev]" then %matplotlib widget
+# Playground.ipynb needs the "playground" extra. The legacy Matplotlib
+# playground (pigeonpilot.playground) additionally needs %matplotlib widget.

@@ -1,0 +1,148 @@
+.pp-root {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px 16px;
+  max-width: 740px;
+}
+
+.pp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.pp-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.pp-btn:hover {
+  background: #eef2f7;
+  border-color: #94a3b8;
+}
+
+.pp-btn-primary {
+  background: #2e7d32;
+  border-color: #2e7d32;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.pp-btn-primary:hover {
+  background: #276b2b;
+  border-color: #276b2b;
+}
+
+.pp-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.pp-range {
+  width: 96px;
+  accent-color: #2e7d32;
+}
+
+.pp-check {
+  cursor: pointer;
+}
+
+.pp-status {
+  font-size: 12.5px;
+  color: #475569;
+  min-height: 18px;
+  margin-bottom: 8px;
+}
+
+.pp-stage {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.pp-canvas {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: block;
+}
+
+.pp-field-canvas {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.pp-raster {
+  margin-top: 12px;
+}
+
+.pp-readout {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.pp-card {
+  border-left: 3px solid #cbd5e1;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 7px 11px;
+  min-width: 190px;
+}
+
+.pp-card-label {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pp-card-value {
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.pp-card-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.pp-strip {
+  display: block;
+  margin-top: 6px;
+}
+
+.pp-warn {
+  margin-top: 6px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #7c2d12;
+}
+
+.pp-note {
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.5;
+  margin-top: 10px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 8px;
+}

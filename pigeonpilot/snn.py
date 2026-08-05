@@ -115,6 +115,8 @@ class CheckpointBundle:
     classifier_a: Any
     classifier_b: Any
     metrics: dict[str, Any] = field(default_factory=dict)
+    # Directory this run was loaded from, so derived artefacts can be cached beside it.
+    source: Optional[Path] = None
 
 
 def home_bin(level: Level, heading_bins: int = DEFAULT_HEADING_BINS) -> int:
@@ -487,6 +489,7 @@ def load_checkpoint(directory: str | Path) -> CheckpointBundle:
         classifier_a=joblib.load(root / "classifier_a.joblib"),
         classifier_b=joblib.load(root / "classifier_b.joblib"),
         metrics=dict(meta.get("metrics") or {}),
+        source=root,
     )
 
 

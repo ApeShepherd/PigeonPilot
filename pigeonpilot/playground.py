@@ -8,6 +8,7 @@ Uses the same Matplotlib chrome / colors as ``viz.plot_level``. Requires
 
 from __future__ import annotations
 
+import time
 from typing import Literal, Optional, Sequence
 
 import matplotlib.pyplot as plt
@@ -37,11 +38,20 @@ from .snn import (
     heading_to_unit,
     predict_home_bin,
 )
-from .viz import COLORS, SIZES, Z_ORDER, compute_xy_limits
+from .viz import (
+    COLORS,
+    SIZES,
+    Z_ORDER,
+    compute_xy_limits,
+    plot_home_prediction_ring,
+    plot_level_encoding,
+    plot_level_ring_frames,
+)
 
 ModelChoice = Literal["A", "B", "both"]
 DEMO_LEVEL_ID = 900_001
 PRED_COLOR = "magenta"
+PRED_COLOR_B = "darkorange"
 DOVE = "🕊️"
 
 
@@ -212,7 +222,7 @@ class PigeonPlayground:
         self,
         bundle: CheckpointBundle,
         *,
-        model: ModelChoice = "A",
+        model: ModelChoice = "both",
         field_half: float = 8.0,
         outbound_frames: int = 60,
         home_frames: int = 45,
@@ -233,18 +243,18 @@ class PigeonPlayground:
         self._dove: Optional[Annotation] = None
         self._status = None
         self._artists: list = []
+        self._diag_figs: list[Figure] = []
 
-        self.fig: Figure
-        self.ax: Axes
-        n_cols = 2 if model == "both" else 1
-        self.fig, axes = plt.subplots(1, n_cols, figsize=(6 * n_cols, 6), squeeze=False)
-        self.axes = list(axes[0])
-        self.ax = self.axes[0]
-        for i, ax in enumerate(self.axes):
-            label = "A (fixed)" if (model == "A" or (model == "both" and i == 0)) else "B (STDP)"
-            if model != "both":
-                label = "A (fixed)" if model == "A" else "B (STDP)"
-            _draw_base_axes(ax, self.field_half, f"PigeonPilot playground — {label}")
+        # One shared drawing canvas — both models run the same drawn path.
+        self.fig, self.ax = plt.subplots(figsize=(6, 6))
+        self.axes = [self.ax]
+        if model == "both":
+            title = "PigeonPilot playground — A + B (same path)"
+        elif model == "A":
+            title = "PigeonPilot playground — A (fixed)"
+        else:
+            title = "PigeonPilot playground — B (STDP)"
+        _draw_base_axes(self.ax, self.field_half, title)
         self._status = self.fig.text(
             0.5,
             0.02,
@@ -275,40 +285,76 @@ class PigeonPlayground:
         self.fig.canvas.mpl_connect("motion_notify_event", self._on_motion)
         self.fig.canvas.mpl_connect("button_release_event", self._on_release)
 
-        self._add_buttons()
         self.fig.tight_layout(rect=(0, 0.06, 1, 0.96))
+        self.controls = self._make_controls()
+        # Tune ipympl chrome when available.
+        for attr, value in (
+            ("header_visible", False),
+            ("footer_visible", False),
+            ("resizable", True),
+        ):
+            if hasattr(self.fig.canvas, attr):
+                setattr(self.fig.canvas, attr, value)
 
     def _set_status(self, text: str) -> None:
         if self._status is not None:
             self._status.set_text(text)
         self.fig.canvas.draw_idle()
 
-    def _add_buttons(self) -> None:
+    def _make_controls(self):
+        """Fly/Clear buttons (displayed by the notebook, not wrapped with the canvas)."""
         try:
-            from IPython.display import display
             import ipywidgets as widgets
         except ImportError:
             self._set_status(
                 "ipywidgets missing — call playground.clear() / playground.fly() from code."
             )
-            return
+            return None
 
         fly_btn = widgets.Button(description="Fly 🕊️", button_style="success")
         clear_btn = widgets.Button(description="Clear", button_style="warning")
         fly_btn.on_click(lambda _: self.fly())
         clear_btn.on_click(lambda _: self.clear())
-        display(widgets.HBox([fly_btn, clear_btn]))
+        return widgets.HBox([fly_btn, clear_btn])
+
+    def show(self):
+        """Display controls + return the interactive canvas for the notebook cell.
+
+        Cursor/VS Code: put ``playground.show()`` as the **last** expression in the
+        cell so the ipympl canvas is the cell output (drawable). Do not also
+        ``display(fig)`` / echo ``fig`` or you get a second static PNG.
+        """
+        try:
+            from IPython.display import display
+            import matplotlib
+        except ImportError:
+            return self.fig
+
+        backend = matplotlib.get_backend().lower()
+        if not any(k in backend for k in ("ipympl", "widget", "nbagg")):
+            print(
+                f"WARNING: backend={matplotlib.get_backend()!r}. "
+                "Run `%matplotlib widget` in the first code cell, then re-run."
+            )
+
+        if self.controls is not None:
+            display(self.controls)
+        # Returning the canvas (not Figure) keeps the interactive widget path.
+        return self.fig.canvas
 
     def _on_press(self, event: MouseEvent) -> None:
-        if self._busy or event.inaxes is not self.ax or event.xdata is None:
+        if self._busy or event.inaxes is None or event.xdata is None:
+            return
+        if event.inaxes != self.ax:
             return
         self._drawing = True
         self._draw_pts = [[0.0, 0.0], [float(event.xdata), float(event.ydata)]]
         self._update_draft()
 
     def _on_motion(self, event: MouseEvent) -> None:
-        if not self._drawing or event.inaxes is not self.ax or event.xdata is None:
+        if not self._drawing or event.xdata is None or event.ydata is None:
             return
+        # Keep drawing even if the cursor briefly leaves the axes.
         self._draw_pts.append([float(event.xdata), float(event.ydata)])
         self._update_draft()
 
@@ -316,7 +362,7 @@ class PigeonPlayground:
         if not self._drawing:
             return
         self._drawing = False
-        if event.inaxes is self.ax and event.xdata is not None:
+        if event.xdata is not None and event.ydata is not None:
             self._draw_pts.append([float(event.xdata), float(event.ydata)])
         self._update_draft()
         self._set_status("Path captured — click Fly to displace & predict home.")
@@ -328,6 +374,77 @@ class PigeonPlayground:
             arr = np.asarray(self._draw_pts)
             self._draft_line.set_data(arr[:, 0], arr[:, 1])
         self.fig.canvas.draw_idle()
+
+    def _close_diagnosis(self) -> None:
+        for fig in self._diag_figs:
+            plt.close(fig)
+        self._diag_figs.clear()
+
+    def _display_diagnosis_fig(self, fig: Figure) -> None:
+        """Show a figure centered in the cell with titles fully visible."""
+        import base64
+        import io
+
+        from IPython.display import HTML, display
+
+        buf = io.BytesIO()
+        fig.savefig(
+            buf,
+            format="png",
+            dpi=130,
+            bbox_inches="tight",
+            pad_inches=0.45,
+            facecolor="white",
+            edgecolor="none",
+        )
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        display(
+            HTML(
+                '<div style="width:100%; text-align:center; margin:0.4em 0;">'
+                f'<img src="data:image/png;base64,{b64}" '
+                'style="max-width:100%; height:auto;"/>'
+                "</div>"
+            )
+        )
+
+    def _show_diagnosis(self, level: Level, results: list[tuple[str, int, float]]) -> None:
+        """Path | raster | segment rings + home predict ring(s) under the widget."""
+        self._close_diagnosis()
+        cfg = self.bundle.config
+        # Avoid auto-display-on-create (ipympl) then a second display() dump.
+        was_interactive = plt.isinteractive()
+        plt.ioff()
+        try:
+            enc = plot_level_encoding(
+                level,
+                velocity=cfg.encoding_velocity,
+                dt=cfg.encoding_dt,
+                rate_hz=cfg.input_rate_hz,
+                seed=cfg.encoding_seed,
+            )
+            rings = plot_level_ring_frames(
+                level, velocity=cfg.encoding_velocity, dt=cfg.encoding_dt
+            )
+            self._diag_figs.extend([enc, rings])
+            true_bin = home_heading_bin(level)
+            for name, pred_bin, _err in results:
+                pred_fig = plot_home_prediction_ring(
+                    true_bin,
+                    pred_bin,
+                    title=(
+                        f"Home readout · model {name}  |  "
+                        f"true bin {true_bin}  ·  pred bin {pred_bin}"
+                    ),
+                )
+                self._diag_figs.append(pred_fig)
+        finally:
+            if was_interactive:
+                plt.ion()
+        try:
+            for fig in self._diag_figs:
+                self._display_diagnosis_fig(fig)
+        except ImportError:
+            return
 
     def clear(self) -> None:
         self._busy = False
@@ -341,6 +458,7 @@ class PigeonPlayground:
             except ValueError:
                 pass
         self._artists.clear()
+        self._close_diagnosis()
         if self._dove is not None:
             self._dove.set_position((0.0, 0.0))
         for ax in self.axes:
@@ -378,35 +496,18 @@ class PigeonPlayground:
         true_bin = home_heading_bin(level)
         results: list[tuple[str, int, float]] = []
 
-        models: list[tuple[str, Axes, object, object]]
+        models: list[tuple[str, object, object, str]]
         if self.model == "both":
             models = [
-                ("A", self.axes[0], self.bundle.network_a, self.bundle.classifier_a),
-                ("B", self.axes[1], self.bundle.network_b, self.bundle.classifier_b),
+                ("A", self.bundle.network_a, self.bundle.classifier_a, PRED_COLOR),
+                ("B", self.bundle.network_b, self.bundle.classifier_b, PRED_COLOR_B),
             ]
-            # Sync path onto panel B
-            self.axes[1].plot(
-                points[:, 0],
-                points[:, 1],
-                "-",
-                color=COLORS["path"],
-                lw=SIZES["path_lw"],
-                zorder=Z_ORDER["trajectory"],
-            )
-            self.axes[1].scatter(
-                [level.end_xy[0]],
-                [level.end_xy[1]],
-                marker="o",
-                s=SIZES["release"],
-                c=COLORS["release"],
-                zorder=Z_ORDER["markers"],
-            )
         elif self.model == "A":
-            models = [("A", self.ax, self.bundle.network_a, self.bundle.classifier_a)]
+            models = [("A", self.bundle.network_a, self.bundle.classifier_a, PRED_COLOR)]
         else:
-            models = [("B", self.ax, self.bundle.network_b, self.bundle.classifier_b)]
+            models = [("B", self.bundle.network_b, self.bundle.classifier_b, PRED_COLOR_B)]
 
-        # Release marker on main axis
+        # Release marker
         rel = self.ax.scatter(
             [level.end_xy[0]],
             [level.end_xy[1]],
@@ -418,17 +519,32 @@ class PigeonPlayground:
         )
         self._artists.append(rel)
 
-        for name, ax, net, clf in models:
+        for i, (name, net, clf, pred_color) in enumerate(models):
             self._set_status(f"Inferring model {name} (reservoir may take a few seconds)…")
             self.fig.canvas.draw_idle()
             pred_bin = predict_home_bin(net, clf, level, self.bundle.config)
             _, err_deg = circular_bin_error(true_bin, pred_bin)
             results.append((name, pred_bin, err_deg))
-            self._draw_home_overlay(ax, level, pred_bin)
-            if name == models[0][0] or self.model != "both":
+            # Fan A/B sideways so identical predictions stay both visible.
+            if len(models) == 1:
+                lateral = 0.0
+            else:
+                lateral = -1.0 if i == 0 else 1.0
+            self._draw_home_overlay(
+                self.ax,
+                level,
+                pred_bin,
+                pred_color=pred_color,
+                pred_label=f"{name} predicted",
+                draw_true=(i == 0),
+                lateral=lateral,
+            )
+            if len(models) == 1:
                 release, delta = predicted_home_ray(level, pred_bin)
                 home_pts = np.vstack([release, release + delta])
-                self._animate_along(home_pts, self.home_frames, phase="home", ax=ax)
+                self._animate_along(
+                    home_pts, self.home_frames, phase="home", trail_color=pred_color
+                )
 
         true_h = home_heading_deg(level.home_xy)
         bits = [
@@ -438,40 +554,62 @@ class PigeonPlayground:
         self._set_status(
             f"True home {true_h:.0f}° (bin {true_bin})  |  " + "  ·  ".join(bits)
         )
+        self._show_diagnosis(level, results)
         self._busy = False
 
-    def _draw_home_overlay(self, ax: Axes, level: Level, pred_bin: int) -> None:
+    def _draw_home_overlay(
+        self,
+        ax: Axes,
+        level: Level,
+        pred_bin: int,
+        *,
+        pred_color: str = PRED_COLOR,
+        pred_label: str = "predicted home",
+        draw_true: bool = True,
+        lateral: float = 0.0,
+    ) -> None:
         end = np.asarray(level.end_xy, dtype=float)
         true_delta = np.asarray(level.home_xy, dtype=float)
         _, pred_delta = predicted_home_ray(level, pred_bin)
         width = SIZES["quiver_width"]
-        q_true = ax.quiver(
-            end[0],
-            end[1],
-            true_delta[0],
-            true_delta[1],
-            angles="xy",
-            scale_units="xy",
-            scale=1,
-            color=COLORS["home_vector"],
-            width=width,
-            label="true home",
-            zorder=Z_ORDER["vectors"],
-        )
+        if draw_true:
+            q_true = ax.quiver(
+                end[0],
+                end[1],
+                true_delta[0],
+                true_delta[1],
+                angles="xy",
+                scale_units="xy",
+                scale=1,
+                color=COLORS["home_vector"],
+                width=width,
+                label="true home",
+                zorder=Z_ORDER["vectors"],
+            )
+            self._artists.append(q_true)
+
+        origin = end.copy()
+        if lateral != 0.0 and float(np.linalg.norm(pred_delta)) > 1e-9:
+            tang = pred_delta / np.linalg.norm(pred_delta)
+            perp = np.array([-tang[1], tang[0]], dtype=float)
+            # ~3% of home length, enough to separate stacked A/B arrows.
+            shift = 0.03 * float(np.linalg.norm(true_delta)) + 0.12
+            origin = end + perp * shift * lateral
+
         q_pred = ax.quiver(
-            end[0],
-            end[1],
+            origin[0],
+            origin[1],
             pred_delta[0],
             pred_delta[1],
             angles="xy",
             scale_units="xy",
             scale=1,
-            color=PRED_COLOR,
-            width=width,
-            label="predicted home",
-            zorder=Z_ORDER["vectors"],
+            color=pred_color,
+            width=width * 1.15,
+            label=pred_label,
+            zorder=Z_ORDER["vectors"] + 1,
         )
-        self._artists.extend([q_true, q_pred])
+        self._artists.append(q_pred)
         handles, labels = ax.get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
         ax.legend(by_label.values(), by_label.keys(), loc="best", fontsize=8)
@@ -483,6 +621,7 @@ class PigeonPlayground:
         *,
         phase: str,
         ax: Optional[Axes] = None,
+        trail_color: Optional[str] = None,
     ) -> None:
         ax = ax or self.ax
         frames = resample_polyline(points, n_frames)
@@ -492,7 +631,8 @@ class PigeonPlayground:
 
         trail_x: list[float] = []
         trail_y: list[float] = []
-        trail_color = COLORS["path"] if phase == "outbound" else PRED_COLOR
+        if trail_color is None:
+            trail_color = COLORS["path"] if phase == "outbound" else PRED_COLOR
         (trail,) = ax.plot(
             [],
             [],
@@ -504,6 +644,8 @@ class PigeonPlayground:
         )
         self._artists.append(trail)
 
+        # Prefer time.sleep over plt.pause: in Jupyter/ipympl, pause() re-emits
+        # the figure into the cell output every frame → "endless plots" when scrolling.
         for xy in frames:
             x, y = float(xy[0]), float(xy[1])
             trail_x.append(x)
@@ -514,14 +656,20 @@ class PigeonPlayground:
                 dove.set_position((x, y))
             self.fig.canvas.draw_idle()
             self.fig.canvas.flush_events()
-            plt.pause(0.02)
+            time.sleep(0.02)
 
 
 def launch_playground(
     bundle: CheckpointBundle,
     *,
-    model: ModelChoice = "A",
+    model: ModelChoice = "both",
     field_half: float = 8.0,
 ) -> PigeonPlayground:
-    """Create and return an interactive playground bound to a loaded checkpoint."""
+    """Create and return an interactive playground bound to a loaded checkpoint.
+
+    Default ``model=\"both\"``: one drawn path is evaluated by A and B together.
+    """
+    # Drop stale figures from earlier cell runs so outputs don't pile up.
+    plt.close("all")
+    plt.ion()
     return PigeonPlayground(bundle, model=model, field_half=field_half)

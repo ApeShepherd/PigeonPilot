@@ -899,6 +899,63 @@ def plot_body_ring_anatomy(figsize: tuple[float, float] = (11.5, 3.8)) -> Figure
     return fig
 
 
+def plot_home_prediction_ring(
+    true_bin: int,
+    pred_bin: int,
+    *,
+    heading_bins: int = DEFAULT_HEADING_BINS,
+    title: Optional[str] = None,
+    panel_inches: float = 2.8,
+) -> Figure:
+    """Home readout in the same body-ring layout as ``plot_level_ring_frames``.
+
+    Geographic North stays fixed; the beak points at the home heading
+    (true | predicted). The highlighted neuron is the body bin currently
+    aligned with North — same convention as the segment rings.
+    """
+    step = FULL_CIRCLE_DEG / heading_bins
+    panels: list[tuple[str, int, str]] = [
+        ("true home", int(true_bin) % heading_bins, COLORS["home_vector"]),
+        ("pred home", int(pred_bin) % heading_bins, "magenta"),
+    ]
+
+    fig, axes = plt.subplots(
+        1,
+        2,
+        figsize=(panel_inches * 2.4, panel_inches + 1.15),
+        subplot_kw={"projection": "polar"},
+        gridspec_kw={"wspace": 0.55},
+    )
+    fig.subplots_adjust(top=0.78, bottom=0.06, left=0.06, right=0.94)
+    for ax, (label, home_bin_idx, color) in zip(axes, panels):
+        heading = home_bin_idx * step
+        north_bin = heading_to_bin(heading, heading_bins)
+        _draw_body_ring_world(
+            ax,
+            heading_deg=heading,
+            active_bin=north_bin,
+            highlight_color=color,
+            dim=0.35,
+        )
+        ax.set_title(
+            f"{label}\nbeak → {heading:.0f}° (home bin {home_bin_idx})",
+            fontsize=9,
+            pad=12,
+            color=color,
+        )
+
+    fig.suptitle(
+        title
+        or (
+            "Home readout · North fixed · beak faces home heading · "
+            "highlighted bin points at North"
+        ),
+        fontsize=11,
+        y=0.98,
+    )
+    return fig
+
+
 def plot_level_ring_frames(
     level: Level,
     *,
@@ -942,8 +999,8 @@ def plot_level_ring_frames(
         slots += 1
     start = (slots - n) // 2
 
-    fig = plt.figure(figsize=(panel_inches * slots, panel_inches + 0.55))
-    gs = GridSpec(1, slots, figure=fig, wspace=0.55)
+    fig = plt.figure(figsize=(panel_inches * slots, panel_inches + 1.15))
+    gs = GridSpec(1, slots, figure=fig, wspace=0.55, top=0.78, bottom=0.08)
 
     for i, (block, color) in enumerate(zip(plan, colors)):
         ax = fig.add_subplot(gs[0, start + i], projection="polar")
@@ -957,7 +1014,7 @@ def plot_level_ring_frames(
         ax.set_title(
             f"seg {i}\nH={block.heading_deg:.0f}° → bin {block.bin_idx}",
             fontsize=9,
-            pad=10,
+            pad=12,
             color=color,
         )
 
@@ -966,6 +1023,6 @@ def plot_level_ring_frames(
         f"Level #{level.level_id} · {level.difficulty} · {family}  "
         f"| North fixed · body turns · highlighted bin fires",
         fontsize=11,
-        y=1.02,
+        y=0.98,
     )
     return fig

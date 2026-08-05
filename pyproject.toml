@@ -27,10 +27,18 @@ dev = [
     "ipympl>=0.9",
     "ipywidgets>=8.0",
 ]
+# Live playground widget (draw → displace → predict).
+playground = [
+    "anywidget>=0.9",
+    "ipywidgets>=8.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["pigeonpilot*"]
+
+[tool.setuptools.package-data]
+pigeonpilot = ["static/*.js", "static/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

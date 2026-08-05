@@ -14,6 +14,7 @@ from pigeonpilot.paths import generate_level
 from pigeonpilot.viz import (
     compute_xy_limits,
     plot_body_ring_anatomy,
+    plot_home_prediction_ring,
     plot_level,
     plot_level_encoding,
     plot_level_ring_frames,
@@ -124,6 +125,13 @@ def test_plot_level_ring_frames_smoke():
     plt.close(fig)
 
 
+def test_plot_home_prediction_ring_smoke():
+    fig = plot_home_prediction_ring(true_bin=18, pred_bin=20)
+    polar = [ax for ax in fig.axes if getattr(ax, "name", None) == "polar"]
+    assert len(polar) == 2
+    plt.close(fig)
+
+
 def test_plot_release_points_smoke():
     data = generate_curriculum_dataset(seed=42)[:20]
     fig, ax = plt.subplots()
@@ -144,6 +152,7 @@ def test_package_exports_public_api():
     import pigeonpilot as pp
 
     assert callable(pp.plot_body_ring_anatomy)
+    assert callable(pp.plot_home_prediction_ring)
     assert callable(pp.encode_level)
     assert callable(pp.snap_heading)
     assert callable(pp.plan_encoding)

@@ -47,6 +47,7 @@ from .paths import (
 from .viz import (
     compute_xy_limits,
     plot_body_ring_anatomy,
+    plot_home_prediction_ring,
     plot_level,
     plot_level_encoding,
     plot_level_ring_frames,
@@ -54,6 +55,15 @@ from .viz import (
     plot_release_points,
     plot_spike_raster,
 )
+from .drawing import (
+    DrawnPath,
+    TrainingBand,
+    merge_heading_blocks,
+    prepare_drawn_path,
+    simplify_polyline,
+    training_band,
+)
+from .flightplan import build_flight_plan, circular_summary
 from .playground import (
     launch_playground,
     level_from_segments,
@@ -116,6 +126,7 @@ __all__ = [
     "plot_level_encoding",
     "plot_body_ring_anatomy",
     "plot_level_ring_frames",
+    "plot_home_prediction_ring",
     "ReservoirConfig",
     "CheckpointBundle",
     "home_bin",
@@ -132,4 +143,12 @@ __all__ = [
     "level_from_segments",
     "predicted_home_ray",
     "launch_playground",
+    "DrawnPath",
+    "TrainingBand",
+    "training_band",
+    "simplify_polyline",
+    "merge_heading_blocks",
+    "prepare_drawn_path",
+    "build_flight_plan",
+    "circular_summary",
 ]
