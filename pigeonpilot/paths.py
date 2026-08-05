@@ -26,23 +26,31 @@ Default input resolution is 36 bins → 10° steps (one neuron per bin later).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Sequence, TypedDict
+from typing import Literal, NotRequired, Sequence, TypedDict
 
 import numpy as np
 
-Style = Literal["linear", "turning", "curved"]
-Difficulty = Literal["easy", "medium", "hard"]
+Style = Literal["linear", "turning", "zigzag", "curved"]
+Difficulty = Literal["easy", "medium", "hard", "expert", "extreme"]
 TurningScale = Literal["gentle", "sharp"]
+ZigzagScale = Literal["gentle", "sharp"]
 CurvedMode = Literal["mild", "arc"]
 
-STYLES: tuple[Style, ...] = ("linear", "turning", "curved")
-DIFFICULTIES: tuple[Difficulty, ...] = ("easy", "medium", "hard")
+STYLES: tuple[Style, ...] = ("linear", "turning", "zigzag", "curved")
+DIFFICULTIES: tuple[Difficulty, ...] = (
+    "easy",
+    "medium",
+    "hard",
+    "expert",
+    "extreme",
+)
 
 FULL_CIRCLE_DEG = 360.0
 DEFAULT_HEADING_BINS = 36
 
-# Turning / curved generator parameters (bin counts relative to heading_bins)
-GENTLE_JUMP_BINS: tuple[int, ...] = (2, 3, 4)
+# Turning / zigzag / curved generator parameters (bin counts relative to heading_bins)
+GENTLE_JUMP_BINS: tuple[int, ...] = (2, 3, 4)  # turning gentle ≈ 20–40°
+ZIGZAG_GENTLE_JUMP_BINS: tuple[int, ...] = (5, 6, 7)  # zigzag gentle ≈ 50–70° (visible)
 SHARP_JUMP_QUARTER_DIV = 4  # ~90° on a full circle of bins
 SHARP_JUMP_THIRD_DIV = 3  # ~120°
 MILD_AMP_DIVISOR = 12  # amp ≈ heading_bins/12 (~30° at 36 bins)
@@ -63,18 +71,24 @@ class DifficultySpec(TypedDict):
         Inclusive-style ``(lo, hi)`` uniform draw for segment lengths.
     turning_scale :
         Jump size for ``turning`` levels (``gentle`` / ``sharp``).
+    zigzag_scale :
+        Jump size for ``zigzag`` levels (``gentle`` / ``sharp``).
     curved_mode :
-        Shape for ``curved`` levels (``mild`` / ``arc``).
+        Default shape for ``curved`` levels (``mild`` / ``arc``).
     skill :
         Short human-readable label for tables / notebooks.
+    curved_modes :
+        Optional split of curved counts by mode (e.g. mild + arc).
     """
 
     counts: dict[Style, int]
     n_segments: tuple[int, int]
     distance_range: tuple[float, float]
     turning_scale: TurningScale
+    zigzag_scale: ZigzagScale
     curved_mode: CurvedMode
     skill: str
+    curved_modes: NotRequired[dict[CurvedMode, int]]
 
 
 @dataclass(frozen=True)
@@ -103,7 +117,7 @@ class Level:
     level_id :
         Stable integer id within a dataset.
     style :
-        Trajectory family (``linear`` / ``turning`` / ``curved``).
+        Trajectory family (``linear`` / ``turning`` / ``zigzag`` / ``curved``).
     segments :
         Ordered flight pieces from home.
     end_xy :
@@ -222,6 +236,21 @@ def home_vector(segments: Sequence[Segment]) -> np.ndarray:
     return -displacement_vector(segments)
 
 
+def home_heading_deg(home_xy: tuple[float, float] | Sequence[float]) -> float:
+    """Compass heading of the home vector (``0°`` = North / +y)."""
+    x, y = float(home_xy[0]), float(home_xy[1])
+    return float((np.degrees(np.arctan2(x, y)) + FULL_CIRCLE_DEG) % FULL_CIRCLE_DEG)
+
+
+def home_heading_bin(
+    level: Level,
+    heading_bins: int = DEFAULT_HEADING_BINS,
+) -> int:
+    """Snap ``level.home_xy`` to a heading bin in ``{0 … heading_bins-1}``."""
+    step = _heading_step(heading_bins)
+    return int(round(home_heading_deg(level.home_xy) / step)) % heading_bins
+
+
 # ---------------------------------------------------------------------------
 # Heading generators
 # ---------------------------------------------------------------------------
@@ -231,14 +260,38 @@ def _sample_distance(rng: np.random.Generator, distance_range: tuple[float, floa
     return float(rng.uniform(lo, hi))
 
 
+def _jump_magnitudes(
+    heading_bins: int,
+    scale: TurningScale | ZigzagScale,
+    *,
+    family: Literal["turning", "zigzag"] = "turning",
+) -> list[int]:
+    """Absolute jump sizes in bins.
+
+    Turning gentle ≈ 20–40°; zigzag gentle ≈ 50–70° (clearer cancellation);
+    sharp ≈ 90–120° for both families.
+    """
+    if scale == "gentle":
+        if family == "zigzag":
+            return list(ZIGZAG_GENTLE_JUMP_BINS)
+        return list(GENTLE_JUMP_BINS)
+    q = heading_bins // SHARP_JUMP_QUARTER_DIV
+    t = heading_bins // SHARP_JUMP_THIRD_DIV
+    return [q, t]
+
+
 def _generate_linear_headings(
     rng: np.random.Generator,
     n_segments: int,
     heading_bins: int,
+    base_heading_deg: float | None = None,
 ) -> list[float]:
     """True straight line: same heading every segment."""
     step = _heading_step(heading_bins)
-    base = float(rng.integers(0, heading_bins) * step)
+    if base_heading_deg is None:
+        base = float(rng.integers(0, heading_bins) * step)
+    else:
+        base = snap_heading(base_heading_deg, heading_bins)
     return [base] * n_segments
 
 
@@ -251,17 +304,29 @@ def _generate_turning_headings(
     """Turns on the bin grid. gentle ≈ small bends; sharp ≈ ~90° jumps."""
     step = _heading_step(heading_bins)
     headings = [float(rng.integers(0, heading_bins) * step)]
-    if turning_scale == "gentle":
-        # ~20–40° on a 36-bin grid
-        jumps = list(GENTLE_JUMP_BINS) + [-b for b in GENTLE_JUMP_BINS]
-    else:
-        # ~90° / ~120° from quarter / third of the bin circle
-        q = heading_bins // SHARP_JUMP_QUARTER_DIV
-        t = heading_bins // SHARP_JUMP_THIRD_DIV
-        jumps = [q, t, -q, -t]
+    mags = _jump_magnitudes(heading_bins, turning_scale, family="turning")
+    jumps = mags + [-b for b in mags]
     for _ in range(n_segments - 1):
         jump = int(rng.choice(jumps))
         headings.append(snap_heading(headings[-1] + jump * step, heading_bins))
+    return headings
+
+
+def _generate_zigzag_headings(
+    rng: np.random.Generator,
+    n_segments: int,
+    heading_bins: int,
+    zigzag_scale: ZigzagScale = "gentle",
+) -> list[float]:
+    """Strictly alternating left/right jumps (cancellation skill)."""
+    step = _heading_step(heading_bins)
+    headings = [float(rng.integers(0, heading_bins) * step)]
+    mags = _jump_magnitudes(heading_bins, zigzag_scale, family="zigzag")
+    sign = 1 if rng.random() < 0.5 else -1
+    for _ in range(n_segments - 1):
+        mag = int(rng.choice(mags))
+        headings.append(snap_heading(headings[-1] + sign * mag * step, heading_bins))
+        sign = -sign
     return headings
 
 
@@ -327,13 +392,15 @@ def generate_level(
     difficulty: Difficulty = "easy",
     curved_mode: CurvedMode = "mild",
     turning_scale: TurningScale = "gentle",
+    zigzag_scale: ZigzagScale = "gentle",
+    base_heading_deg: float | None = None,
 ) -> Level:
     """Create one displacement level (geometry computed once, then stored).
 
     Parameters
     ----------
     style :
-        Trajectory family: ``linear``, ``turning``, or ``curved``.
+        Trajectory family: ``linear``, ``turning``, ``zigzag``, or ``curved``.
     n_segments :
         Number of straight pieces (≥ 1).
     seed :
@@ -352,6 +419,11 @@ def generate_level(
         Only for ``style="curved"``: ``mild`` or ``arc``.
     turning_scale :
         Only for ``style="turning"``: ``gentle`` or ``sharp``.
+    zigzag_scale :
+        Only for ``style="zigzag"``: ``gentle`` or ``sharp``.
+    base_heading_deg :
+        Optional fixed outbound heading for ``style="linear"`` (systematic
+        label coverage). Ignored for other styles.
 
     Returns
     -------
@@ -370,10 +442,16 @@ def generate_level(
 
     rng = np.random.default_rng(seed)
     if style == "linear":
-        headings = _generate_linear_headings(rng, n_segments, heading_bins)
+        headings = _generate_linear_headings(
+            rng, n_segments, heading_bins, base_heading_deg=base_heading_deg
+        )
     elif style == "turning":
         headings = _generate_turning_headings(
             rng, n_segments, heading_bins, turning_scale=turning_scale
+        )
+    elif style == "zigzag":
+        headings = _generate_zigzag_headings(
+            rng, n_segments, heading_bins, zigzag_scale=zigzag_scale
         )
     else:
         headings = _curved_headings(rng, n_segments, heading_bins, curved_mode)

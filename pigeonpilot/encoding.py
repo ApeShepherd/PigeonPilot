@@ -18,7 +18,13 @@ East (``90°``) → bin ``27``; South (``180°``) → bin ``18``;
 West (``270°``) → bin ``9``.
 
 Constant velocity: firing **duration** ∝ distance. With ``velocity=1`` and
-``dt=1``, distance 10 North → 10 timesteps with only bin ``0`` = ``1.0``.
+``dt=1``, distance 10 North → 10 timesteps on bin ``0``.
+By default each active timestep is ``1.0`` (deterministic). Optional
+``rate_hz`` switches to Poisson / Bernoulli spikes at that neural rate
+(not heart rate); duration is unchanged — only spike density drops.
+With BindsNET-style ``dt`` in milliseconds, spike probability is
+``rate_hz * dt / 1000`` (e.g. 40 Hz at ``dt=1`` → p=0.04).
+``seed`` exists only so Poisson draws are reproducible.
 Output shape is always ``(T, n_bins)`` float32.
 
 Why "bin" and why ``0`` not ``1``
@@ -223,11 +229,17 @@ def encode_segments(
     velocity: float = 1.0,
     dt: float = 1.0,
     heading_bins: int = DEFAULT_HEADING_BINS,
+    rate_hz: float | None = None,
+    seed: int | None = None,
 ) -> np.ndarray:
-    """Encode a route as a deterministic one-hot spike matrix.
+    """Encode a route as a spike matrix (deterministic or Poisson).
 
     Each segment activates the body-ring neuron that points at North
     (see ``heading_to_bin``) for ``segment_n_steps(distance)`` timesteps.
+    Flight **duration** depends only on ``velocity`` and ``dt``.
+    ``rate_hz`` only thins spikes inside that window (neural Hz, not heart rate).
+    ``seed`` is only for reproducible Poisson draws; ignored when ``rate_hz`` is
+    ``None``.
 
     Parameters
     ----------
@@ -236,9 +248,16 @@ def encode_segments(
     velocity :
         Constant speed (distance per time unit).
     dt :
-        Simulation timestep.
+        Simulation timestep (same units as network ``dt``).
     heading_bins :
         Number of body-ring input neurons.
+    rate_hz :
+        If ``None``, write ``1.0`` on every active timestep (legacy one-hot).
+        If set, spike each active timestep with probability
+        ``min(1, rate_hz * dt / 1000)`` — here ``dt`` is in **milliseconds**
+        (BindsNET convention: ``dt=1.0`` → 1 ms) and ``rate_hz`` is spikes/second.
+    seed :
+        RNG seed for Poisson mode. Unused when ``rate_hz is None``.
 
     Returns
     -------
@@ -248,15 +267,33 @@ def encode_segments(
     Raises
     ------
     ValueError
-        If ``segments`` is empty.
+        If ``segments`` is empty, or ``rate_hz`` is set but not positive.
     """
+    if rate_hz is not None and rate_hz <= 0.0:
+        raise ValueError("rate_hz must be > 0 when set")
+
     plan = plan_encoding(
         segments, velocity=velocity, dt=dt, heading_bins=heading_bins
     )
+    # Poisson only when rate_hz is set; seed keeps A/B runs comparable.
+    # dt is ms (BindsNET): p = rate[Hz] * (dt_ms / 1000) → e.g. 40 Hz @ dt=1 → p=0.04.
+    rng = np.random.default_rng(seed) if rate_hz is not None else None
+    p = (
+        min(1.0, float(rate_hz) * float(dt) / 1000.0)
+        if rate_hz is not None
+        else None
+    )
+
     blocks: list[np.ndarray] = []
     for block in plan:
         mat = np.zeros((block.n_steps, heading_bins), dtype=np.float32)
-        mat[:, block.bin_idx] = 1.0
+        if rate_hz is None:
+            mat[:, block.bin_idx] = 1.0
+        else:
+            assert rng is not None and p is not None
+            mat[:, block.bin_idx] = (rng.random(block.n_steps) < p).astype(
+                np.float32
+            )
         blocks.append(mat)
     return np.concatenate(blocks, axis=0)
 
@@ -267,6 +304,8 @@ def encode_level(
     velocity: float = 1.0,
     dt: float = 1.0,
     heading_bins: int = DEFAULT_HEADING_BINS,
+    rate_hz: float | None = None,
+    seed: int | None = None,
 ) -> np.ndarray:
     """Encode a ``Level`` via its segments.
 
@@ -275,11 +314,15 @@ def encode_level(
     level :
         Displacement trial from ``paths.generate_level`` / curriculum.
     velocity :
-        Constant speed (distance per time unit).
+        Constant speed (distance per time unit). Controls flight duration.
     dt :
         Simulation timestep.
     heading_bins :
         Number of body-ring input neurons.
+    rate_hz :
+        Optional Poisson neural rate (Hz). ``None`` = deterministic one-hot.
+    seed :
+        Poisson reproducibility only (e.g. ``base_seed + level.level_id``).
 
     Returns
     -------
@@ -291,4 +334,6 @@ def encode_level(
         velocity=velocity,
         dt=dt,
         heading_bins=heading_bins,
+        rate_hz=rate_hz,
+        seed=seed,
     )

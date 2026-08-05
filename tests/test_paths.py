@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from pigeonpilot.paths import (
+    DIFFICULTIES,
     STYLES,
     Segment,
     generate_level,
+    home_heading_bin,
+    home_heading_deg,
     home_vector,
     displacement_vector,
     snap_heading,
@@ -21,7 +25,11 @@ def _circ_diff_deg(a: float, b: float) -> float:
 
 
 def test_style_names():
-    assert STYLES == ("linear", "turning", "curved")
+    assert STYLES == ("linear", "turning", "zigzag", "curved")
+
+
+def test_difficulty_ladder_order():
+    assert DIFFICULTIES == ("easy", "medium", "hard", "expert", "extreme")
 
 
 def test_snap_heading_36_bins():
@@ -62,6 +70,18 @@ def test_single_segment_west_is_minus_x():
     np.testing.assert_allclose(home_vector(segments), [1, 0], atol=1e-9)
 
 
+def test_home_heading_helpers_south_home_after_north_flight():
+    level = generate_level(
+        style="linear",
+        n_segments=2,
+        seed=0,
+        base_heading_deg=0.0,
+        distance_range=(1.0, 1.0),
+    )
+    assert abs(home_heading_deg(level.home_xy) - 180.0) < 1e-6
+    assert home_heading_bin(level) == 18
+
+
 def test_generated_level_home_xy_is_negation_of_end_xy():
     """generate_level stores home/end once; home_xy == -end_xy."""
     level = generate_level(style="turning", n_segments=4, seed=7, turning_scale="gentle")
@@ -74,6 +94,17 @@ def test_generated_level_home_xy_is_negation_of_end_xy():
 def test_linear_is_truly_straight():
     level = generate_level(style="linear", n_segments=3, seed=0)
     assert len({seg.heading_deg for seg in level.segments}) == 1
+
+
+def test_linear_respects_base_heading():
+    level = generate_level(
+        style="linear",
+        n_segments=3,
+        seed=0,
+        base_heading_deg=90.0,
+        distance_range=(1.0, 1.0),
+    )
+    assert all(seg.heading_deg == 90.0 for seg in level.segments)
 
 
 def test_turning_gentle_jumps_are_small():
@@ -112,6 +143,66 @@ def test_turning_sharp_jumps_are_large():
             jump = abs(_circ_diff_deg(prev, cur))
             assert jump in allowed
             assert jump > 0.0
+
+
+def test_zigzag_alternates_signs():
+    """Zigzag jumps must strictly alternate left/right."""
+    for scale in ("gentle", "sharp"):
+        for seed in range(40):
+            level = generate_level(
+                style="zigzag",
+                n_segments=6,
+                seed=seed,
+                zigzag_scale=scale,  # type: ignore[arg-type]
+            )
+            headings = [seg.heading_deg for seg in level.segments]
+            diffs = [_circ_diff_deg(a, b) for a, b in zip(headings, headings[1:])]
+            assert all(abs(d) > 1e-9 for d in diffs)
+            signs = [np.sign(d) for d in diffs]
+            for prev, cur in zip(signs, signs[1:]):
+                assert prev == -cur
+
+
+def test_zigzag_sharp_jumps_exceed_gentle():
+    gentle_jumps: list[float] = []
+    sharp_jumps: list[float] = []
+    for seed in range(30):
+        for scale, bucket in (("gentle", gentle_jumps), ("sharp", sharp_jumps)):
+            level = generate_level(
+                style="zigzag",
+                n_segments=5,
+                seed=seed,
+                zigzag_scale=scale,  # type: ignore[arg-type]
+            )
+            headings = [seg.heading_deg for seg in level.segments]
+            bucket.extend(abs(_circ_diff_deg(a, b)) for a, b in zip(headings, headings[1:]))
+    # Zigzag gentle ≈ 50–70°; sharp ≈ 90–120°
+    assert min(gentle_jumps) >= 50.0 - 1e-6
+    assert max(gentle_jumps) <= 70.0 + 1e-6
+    assert min(sharp_jumps) >= 90.0 - 1e-6
+    assert max(gentle_jumps) < min(sharp_jumps)
+
+
+def test_zigzag_gentle_jumps_are_visible():
+    """Zigzag gentle uses 5–7 bin jumps → 50°–70° (not the tiny turning gentle)."""
+    allowed = {50.0, 60.0, 70.0}
+    for seed in range(40):
+        level = generate_level(
+            style="zigzag",
+            n_segments=6,
+            seed=seed,
+            zigzag_scale="gentle",
+        )
+        headings = [seg.heading_deg for seg in level.segments]
+        for prev, cur in zip(headings, headings[1:]):
+            assert abs(_circ_diff_deg(prev, cur)) in allowed
+
+
+def test_zigzag_min_segments_edge():
+    level = generate_level(style="zigzag", n_segments=2, seed=0, zigzag_scale="gentle")
+    assert len(level.segments) == 2
+    d = _circ_diff_deg(level.segments[0].heading_deg, level.segments[1].heading_deg)
+    assert abs(d) > 0.0
 
 
 def test_curved_mild_oscillates_not_straight():
@@ -160,8 +251,6 @@ def test_trajectory_points_starts_at_home():
 
 
 def test_generate_level_rejects_bad_args():
-    import pytest
-
     with pytest.raises(ValueError, match="Unknown style"):
         generate_level(style="diagonal")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="n_segments"):
