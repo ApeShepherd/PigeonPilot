@@ -4,36 +4,36 @@
 
 === Test angular error (circular) ===
 Pigeon A (fixed):  mean error 35.7° ± 34.2°  | exact-bin acc 23.1%
-Pigeon B (STDP):   mean error 68.6° ± 55.6°  | exact-bin acc 13.6%
+Pigeon B (STDP):   mean error 58.0° ± 52.0°  | exact-bin acc 19.0%
 
 By difficulty (mean °):
-  easy      A= 24.4°   B= 60.8°   n=36
-  medium    A= 32.1°   B= 48.2°   n=28
-  hard      A= 21.9°   B= 76.5°   n=26
-  expert    A= 43.4°   B= 75.9°   n=29
-  extreme   A= 58.6°   B= 84.3°   n=28
+  easy      A= 24.4°   B= 28.9°   n=36
+  medium    A= 32.1°   B= 52.1°   n=28
+  hard      A= 21.9°   B= 50.8°   n=26
+  expert    A= 43.4°   B= 85.2°   n=29
+  extreme   A= 58.6°   B= 80.0°   n=28
 
-![img_1.png](img_1_100_neurons.png)
+![img_1.png](images/100neurons.png)
 
 stage | trained on                               | tested on |    n |    A ° |  A acc |    B ° |  B acc
 -------------------------------------------------------------------------------------------------------
-    1 | easy                                     | easy     |   36 |   23.6 |  75.0% |   33.9 |  63.9%
-    2 | easy + medium                            | easy     |   36 |   22.8 |  69.4% |   60.0 |  36.1%
-    2 | easy + medium                            | medium   |   28 |   25.4 |  14.3% |   47.1 |  10.7%
-    3 | easy + medium + hard                     | easy     |   36 |   22.2 |  69.4% |   47.2 |  38.9%
-    3 | easy + medium + hard                     | medium   |   28 |   30.7 |  10.7% |   46.8 |   7.1%
-    3 | easy + medium + hard                     | hard     |   26 |   31.2 |  11.5% |   64.6 |  11.5%
-    4 | easy + medium + hard + expert            | easy     |   36 |   22.2 |  72.2% |   55.6 |  36.1%
-    4 | easy + medium + hard + expert            | medium   |   28 |   29.3 |  14.3% |   57.1 |   3.6%
-    4 | easy + medium + hard + expert            | hard     |   26 |   24.2 |  15.4% |   60.4 |   0.0%
-    4 | easy + medium + hard + expert            | expert   |   29 |   41.0 |   3.4% |   75.2 |   3.4%
-    5 | easy + medium + hard + expert + extreme  | easy     |   36 |   24.4 |  66.7% |   60.8 |  36.1%
-    5 | easy + medium + hard + expert + extreme  | medium   |   28 |   32.1 |   7.1% |   48.2 |  10.7%
-    5 | easy + medium + hard + expert + extreme  | hard     |   26 |   21.9 |  19.2% |   76.5 |   0.0%
-    5 | easy + medium + hard + expert + extreme  | expert   |   29 |   43.4 |   3.4% |   75.9 |   6.9%
-    5 | easy + medium + hard + expert + extreme  | extreme  |   28 |   58.6 |   7.1% |   84.3 |   7.1%
+    1 | easy                                     | easy     |   36 |   23.6 |  75.0% |   22.2 |  77.8%
+    2 | easy + medium                            | easy     |   36 |   22.8 |  69.4% |   30.8 |  58.3%
+    2 | easy + medium                            | medium   |   28 |   25.4 |  14.3% |   53.6 |   7.1%
+    3 | easy + medium + hard                     | easy     |   36 |   22.2 |  69.4% |   33.3 |  55.6%
+    3 | easy + medium + hard                     | medium   |   28 |   30.7 |  10.7% |   52.9 |   7.1%
+    3 | easy + medium + hard                     | hard     |   26 |   31.2 |  11.5% |   48.8 |  11.5%
+    4 | easy + medium + hard + expert            | easy     |   36 |   22.2 |  72.2% |   41.4 |  47.2%
+    4 | easy + medium + hard + expert            | medium   |   28 |   29.3 |  14.3% |   48.2 |   7.1%
+    4 | easy + medium + hard + expert            | hard     |   26 |   24.2 |  15.4% |   55.4 |   7.7%
+    4 | easy + medium + hard + expert            | expert   |   29 |   41.0 |   3.4% |   86.6 |   0.0%
+    5 | easy + medium + hard + expert + extreme  | easy     |   36 |   24.4 |  66.7% |   28.9 |  61.1%
+    5 | easy + medium + hard + expert + extreme  | medium   |   28 |   32.1 |   7.1% |   52.1 |   7.1%
+    5 | easy + medium + hard + expert + extreme  | hard     |   26 |   21.9 |  19.2% |   50.8 |   3.8%
+    5 | easy + medium + hard + expert + extreme  | expert   |   29 |   43.4 |   3.4% |   85.2 |   3.4%
+    5 | easy + medium + hard + expert + extreme  | extreme  |   28 |   58.6 |   7.1% |   80.0 |   7.1%
 
-![img_2.png](img_2_100_neurons_levels.png)
+![img_2.png](images/100neuronslevels.png)
 
 ## NEURON SIZE 1000
 
@@ -48,7 +48,7 @@ By difficulty (mean °):
   expert    A= 41.7°   B= 59.0°   n=29
   extreme   A= 53.6°   B= 83.9°   n=28
 
-![img_3.png](img_3_1000_neurons.png)
+![img_3.png](images/1000neurons.png)
 
 stage | trained on                               | tested on |    n |    A ° |  A acc |    B ° |  B acc
 -------------------------------------------------------------------------------------------------------
@@ -68,7 +68,7 @@ stage | trained on                               | tested on |    n |    A ° | 
     5 | easy + medium + hard + expert + extreme  | expert   |   29 |   41.7 |   3.4% |   59.0 |   3.4%
     5 | easy + medium + hard + expert + extreme  | extreme  |   28 |   53.6 |   3.6% |   83.9 |   3.6%
 
-![img_1.png](img_4_1000_neurons_levels.png)
+![img_1.png](images/1000neuronslevels.png)
 
 
 # ONLY RESERVOIR
