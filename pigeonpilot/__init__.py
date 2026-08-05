@@ -54,6 +54,26 @@ from .viz import (
     plot_release_points,
     plot_spike_raster,
 )
+from .playground import (
+    launch_playground,
+    level_from_segments,
+    polyline_to_segments,
+    predicted_home_ray,
+)
+from .snn import (
+    CheckpointBundle,
+    ReservoirConfig,
+    bin_to_heading_deg,
+    circular_bin_error,
+    config_from_models_globals,
+    home_bin,
+    list_runs,
+    load_checkpoint,
+    load_run,
+    save_checkpoint,
+    save_run,
+    set_latest,
+)
 
 __all__ = [
     "Segment",
@@ -96,4 +116,20 @@ __all__ = [
     "plot_level_encoding",
     "plot_body_ring_anatomy",
     "plot_level_ring_frames",
+    "ReservoirConfig",
+    "CheckpointBundle",
+    "home_bin",
+    "circular_bin_error",
+    "bin_to_heading_deg",
+    "config_from_models_globals",
+    "save_checkpoint",
+    "save_run",
+    "load_checkpoint",
+    "load_run",
+    "list_runs",
+    "set_latest",
+    "polyline_to_segments",
+    "level_from_segments",
+    "predicted_home_ray",
+    "launch_playground",
 ]

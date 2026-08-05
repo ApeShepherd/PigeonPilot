@@ -2,5 +2,7 @@
 #   pip install -e ".[snn,dev]"
 #
 # Core dependencies (installed automatically): numpy, matplotlib
-# Extra "snn"  -> torch, bindsnet, scikit-learn
-# Extra "dev"  -> pytest, jupyter, ipykernel
+# Extra "snn"  -> torch, bindsnet, scikit-learn, joblib
+# Extra "dev"  -> pytest, jupyter, ipykernel, ipympl, ipywidgets
+#
+# Playground.ipynb needs: pip install -e ".[snn,dev]" then %matplotlib widget

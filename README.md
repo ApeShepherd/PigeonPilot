@@ -84,12 +84,15 @@ Default curriculum epochs: `DEFAULT_EPOCHS_PER_DIFFICULTY` (few on `easy`), plus
 | `pigeonpilot/encoding.py` | Rate-coding spike trains `(T, n_bins)` |
 | `pigeonpilot/curriculum.py` | Curriculum SSOT, datasets, training schedules |
 | `pigeonpilot/viz.py` | Plotting |
-| `Models.ipynb` | Reservoir A vs B + staged readout jury |
+| `pigeonpilot/snn.py` | SNN A/B helpers: encode, run_trial, checkpoint I/O |
+| `pigeonpilot/playground.py` | Interactive draw → animate → predict demo |
+| `Models.ipynb` | Reservoir A vs B + staged readout jury (+ checkpoint save) |
+| `Playground.ipynb` | Jury demo: load checkpoint, draw path, live inference |
 | `DatasetVisualizations.ipynb` | Teaching plots for paths / encoding |
 | `tests/` | Unit tests |
 | `pyproject.toml` | Package metadata + optional `snn` / `dev` deps |
 
-**Dependency direction (one-way):** `paths` ← `encoding` / `curriculum` / `viz`.  
+**Dependency direction (one-way):** `paths` ← `encoding` / `curriculum` / `viz` / `snn` / `playground`.  
 `paths` never imports the others. Public symbols are also re-exported from `pigeonpilot`.
 
 ## Setup
@@ -107,11 +110,18 @@ jupyter notebook DatasetVisualizations.ipynb
 SNN stack (torch / bindsnet / sklearn) when you start reservoir work:
 
 ```bash
-pip install -e ".[snn]"
+pip install -e ".[snn,dev]"
+```
+
+Interactive playground (after `Models.ipynb` Step 10 saved a checkpoint):
+
+```bash
+jupyter notebook Playground.ipynb
+# first code cell uses %matplotlib widget (needs ipympl)
 ```
 
 In Cursor: `Cmd+Shift+P` → **Jupyter: Restart Kernel and Run All Cells**.
 
 ## Status
 
-Shipped: path geometry (incl. zigzag), monostyle curriculum (720), rate-code encoding, teaching plots, and `Models.ipynb` A/B reservoir + staged Ridge readout.
+Shipped: path geometry (incl. zigzag), monostyle curriculum (720), rate-code encoding, teaching plots, `Models.ipynb` A/B reservoir + staged Ridge readout, checkpoint export, and interactive `Playground.ipynb`.
