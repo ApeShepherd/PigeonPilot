@@ -17,11 +17,11 @@
 
 Reservoir
 - [x] parameter tuning -> fix script and make the process visible
-- test once for 10000 neurons if there is still a better outcome (let it run, around 1h)
+- [x] test once for 10000 neurons if there is still a better outcome (let it run, around 1h)
 
 STDP
-- stdp parameter tuning script (let it run in the morning, around 1h)
-- document parameter tuning process
+- [x] stdp parameter tuning script (let it run in the morning, around 1h)
+- [x] document parameter tuning process
 
 - train both models level-wise with multiple neurons numbers and document progress
   - change structure to level by level

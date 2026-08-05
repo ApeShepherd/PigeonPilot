@@ -1,6 +1,6 @@
-## RESERVOIR AND STDP comparison
+# RESERVOIR AND STDP comparison
 
-### NEURON SIZE 100
+## NEURON SIZE 100
 
 === Test angular error (circular) ===
 Pigeon A (fixed):  mean error 35.7° ± 34.2°  | exact-bin acc 23.1%
@@ -13,7 +13,7 @@ By difficulty (mean °):
   expert    A= 43.4°   B= 75.9°   n=29
   extreme   A= 58.6°   B= 84.3°   n=28
 
-![img_1.png](img_1.png)
+![img_1.png](img_1_100_neurons.png)
 
 stage | trained on                               | tested on |    n |    A ° |  A acc |    B ° |  B acc
 -------------------------------------------------------------------------------------------------------
@@ -33,14 +33,27 @@ stage | trained on                               | tested on |    n |    A ° | 
     5 | easy + medium + hard + expert + extreme  | expert   |   29 |   43.4 |   3.4% |   75.9 |   6.9%
     5 | easy + medium + hard + expert + extreme  | extreme  |   28 |   58.6 |   7.1% |   84.3 |   7.1%
 
-![img_2.png](img_2.png)
+![img_2.png](img_2_100_neurons_levels.png)
+
+## NEURON SIZE 1000
+
+=== Test angular error (circular) ===
+Pigeon A (fixed):  mean error 34.1° ± 32.0°  | exact-bin acc 22.4%
+Pigeon B (STDP):   mean error 45.6° ± 46.1°  | exact-bin acc 22.4%
+
+By difficulty (mean °):
+  easy      A= 21.1°   B= 14.2°   n=36
+  medium    A= 28.6°   B= 30.4°   n=28
+  hard      A= 28.5°   B= 49.6°   n=26
+  expert    A= 41.7°   B= 59.0°   n=29
+  extreme   A= 53.6°   B= 83.9°   n=28
+
+![img_3.png](img_3_1000_neurons.png)
 
 
 
 
-
-
-ONLY RESERVOIR
+# ONLY RESERVOIR
 
 10.000 neurons:
 

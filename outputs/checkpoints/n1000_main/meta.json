@@ -1,0 +1,75 @@
+{
+  "name": "n1000_main",
+  "config": {
+    "n_input": 36,
+    "n_reservoir": 1000,
+    "network_dt": 1.0,
+    "encoding_dt": 1.0,
+    "encoding_velocity": 0.009148043867160583,
+    "input_rate_hz": 40.0,
+    "encoding_seed": 0,
+    "trailing_silence": 20,
+    "weight_seed": 0,
+    "feedforward_strength": 50,
+    "reservoir_scale": 0.9,
+    "wmin": 0.0,
+    "wmax": 10.0,
+    "inhib_fraction": 0.2,
+    "inhib_weight_ratio": 1.0,
+    "ridge_alpha": 0.01,
+    "lif": {
+      "rest": -65.0,
+      "reset": -65.0,
+      "thresh": -52.0,
+      "refrac": 5,
+      "tc_decay": 250.0
+    },
+    "stdp_nu": [
+      0.001,
+      0.001
+    ],
+    "stdp_tc_pre": 20.0,
+    "stdp_tc_post": 20.0
+  },
+  "metrics": {
+    "summary": {
+      "A": {
+        "mean_deg": 34.08163265306123,
+        "std_deg": 32.04493235835349,
+        "exact_acc": 0.22448979591836735
+      },
+      "B": {
+        "mean_deg": 45.64625850340136,
+        "std_deg": 46.100570734597476,
+        "exact_acc": 0.22448979591836735
+      }
+    },
+    "by_difficulty": {
+      "easy": {
+        "A_mean_deg": 21.11111111111111,
+        "B_mean_deg": 14.166666666666666,
+        "n": 36
+      },
+      "medium": {
+        "A_mean_deg": 28.571428571428573,
+        "B_mean_deg": 30.357142857142858,
+        "n": 28
+      },
+      "hard": {
+        "A_mean_deg": 28.46153846153846,
+        "B_mean_deg": 49.61538461538461,
+        "n": 26
+      },
+      "expert": {
+        "A_mean_deg": 41.724137931034484,
+        "B_mean_deg": 58.96551724137931,
+        "n": 29
+      },
+      "extreme": {
+        "A_mean_deg": 53.57142857142857,
+        "B_mean_deg": 83.92857142857143,
+        "n": 28
+      }
+    }
+  }
+}
