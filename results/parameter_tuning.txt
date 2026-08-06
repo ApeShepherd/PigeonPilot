@@ -102,13 +102,6 @@ target: mean |Δw| > 0.0001 (real learning happened), easy coverage in (0.2, 0.5
 
 -> chosen STDP_NU = (0.001, 0.001) (ratio 1.0:1 — most balanced candidate meeting target, largest magnitude among ties)
 
-The 3 numbers that actually decide it:
-
-max_burst: 23 vs 97-98 (out of 100) — balanced barely moves the reservoir at once, imbalanced fires nearly the whole thing in one instant.
-n_avalanche: 0 vs 15 (every single test level) — the burst wasn't a fluke, it happened every time once imbalanced.
-easy_cov: 33% (healthy, input-dependent) vs 100% (everyone fires regardless of input, so it can't tell inputs apart).
-Everything flips together the moment nu_pre ≠ nu_post — no gradual decline, just a hard on/off switch at "balanced or not."
-
 === Stage 2: STDP_TC_PRE / STDP_TC_POST ===
 STDP_NU fixed at (0.001, 0.001) (Stage 1 winner). Each candidate gets the same short exposure as Stage 1, then we fit RidgeClassifier(alpha=0.01, fixed) on a 150-level stratified train subsample and cross-validate. This is a downstream-performance question, not a stability one (Stage 1 already screened nu for stability), so tc is judged by what actually helps the readout.
 
@@ -119,30 +112,4 @@ STDP_NU fixed at (0.001, 0.001) (Stage 1 winner). Each candidate gets the same s
   40.0 |       60.53 |       6.00%
   80.0 |       60.53 |       6.00%
 
--> chosen STDP_TC_PRE = STDP_TC_POST = 10.0 (lowest mean CV circular error: 60.53 deg)
-
-=== Stage 3: confirm training schedule (full curriculum) ===
-STDP_NU=(0.001, 0.001), STDP_TC_PRE=STDP_TC_POST=10.0 (Stage 1/2 winners, fixed). STDP_EPOCHS_PER_DIFFICULTY / STDP_MIXED_EPOCHS_AFTER are NOT searched — this runs the real, full schedule ({'easy': 3, 'medium': 3, 'hard': 3, 'expert': 3, 'extreme': 3}, mixed_after=6) once, to confirm it's adequate rather than optimize it. This is the expensive part — full curriculum, not a short exposure.
-
-  ... 1000 plastic trials (phase=hard, epoch=2)
-  ... 2000 plastic trials (phase=mixed, epoch=0)
-  ... 3000 plastic trials (phase=mixed, epoch=2)
-  ... 4000 plastic trials (phase=mixed, epoch=3)
-  ... 5000 plastic trials (phase=mixed, epoch=5)
-trained on 5157 plastic trials total
-
-post-training health check: 0/15 probed levels avalanche-like (PASS)
-
-collecting reservoir states for 573 train + 147 test levels...
-
-Final Model B test performance (n=147): mean circular error = 56.73 deg | accuracy = 21.77%
-For reference, Reservoir A (fixed, no STDP) scored 35.17 deg / 22.45% on the same test split (from tune_reservoir_a.py) — compare against that, not chance, to see whether STDP actually helped.
-
-=== Recommended Reservoir B (STDP) hyperparameters ===
-STDP_NU      = (0.001, 0.001)  (searched, Stage 1)
-STDP_TC_PRE  = 10.0  (searched, Stage 2)
-STDP_TC_POST = 10.0  (searched, Stage 2, tied to STDP_TC_PRE)
-STDP_EPOCHS_PER_DIFFICULTY / STDP_MIXED_EPOCHS_AFTER = pigeonpilot.curriculum defaults (confirmed in Stage 3, not searched)
-
-Fixed (from Reservoir A's tuning, not touched here): FEEDFORWARD_STRENGTH=50, RESERVOIR_SCALE=0.9, RIDGE_ALPHA=0.01, INHIB_FRACTION=0.2, INHIB_WEIGHT_RATIO=1.0
-Final test performance: 56.73 deg / 21.77% accuracy
+-> chosen STDP_TC_PRE = STDP_TC_POST = 20 because there seems to be no difference
