@@ -1,7 +1,7 @@
 # PigeonPilot
 A research project exploring Reservoir Computing in Spiking Neural Networks built in the scope of a "Hackathon for Spiking Neural Networks" seminar at "Universität Osnabrück".
 
-![alt text](images/mascot.png)
+<img src="images/mascot.png" alt="drawing" width="300"/>
 
 ## Project description
 
@@ -15,6 +15,7 @@ Specifically we will implement a Spiking Reservoir with linear readout and add S
 ### Research questions
 
 > Can a recurrent LIF reservoir solve a path-finding problem with a ridge regression readout function?
+
 > Does the implementation of plasticity with STDP improve the result?
 
 ### Encoding
@@ -60,11 +61,11 @@ RIDGE_ALPHA = 0.01
 Then we trained and tested the models for different neuron sizes: 10, 100, 1000, 10000.
 
 ### Results
-![alt text](images/neuron_size_comparison.jpg)
+![alt text](images/neuron_size_comparison.png)
 The mean error of `network_a` can be pushed down to 31.6 degrees for 10000 neurons, performing better for easier levels and worse for more difficult levels.
 The other `network_b` performs consistently worse with a mean error of 45.6 degrees for 1000 neurons. This seems counter intuitive at first, given that plasticity is applied on top of a reservoir that already works well. But since the randomness of the reservoir is exactly what makes it work, the added plasticity could reduce the resulting entropy making it harder for the readout function to detect patterns. If you would increase training phases of the STDP (currently we only present each data point 3 times for time reasons) it will probably work better and could possibly outperform `network_a`.
 
-![alt text](images/1000_neuronslevels.jpg)
+![alt text](images/1000neuronslevels.png)
 We trained and tested the models in stages of difficulty to see how training on higher difficulties will influence the performence of already trained lower levels. We can see, in this example with 1000 neurons that easier paths keep their low error throughout the process.
 
 ## Code Guide
@@ -83,14 +84,14 @@ In `/outputs` there are 5 pre-generated models of different neuron sizes we used
 ### Playground
 Run `Playground.ipynb` to test your models on a graphical interface. You can draw a path and watch the pigeon find its way back.
 Change the `RUN_NAME` parameter to import different models from `/outputs/checkpoints`.
-![alt text](images/playground.png.jpg)
+![alt text](images/playground.png)
 
 ### Results
 - `/results/results.md` holds a summary of our results with relevant plots and outputs
 - `/parameter_tuning_scripts/` holds 2 scripts we used to test for different parameters.
 - `/results/parameter_tuning.txt` holds a summary of our parameter tuning process with outputs from the scripts.
 
-Happy flying
+Happy flying!!
 
 ![alt text](images/RealPigeonPilotPic.jpg)
 
