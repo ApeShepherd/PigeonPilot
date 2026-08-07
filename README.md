@@ -90,6 +90,7 @@ Change the `RUN_NAME` parameter to import different models from `/outputs/checkp
 - `/results/results.md` holds a summary of our results with relevant plots and outputs
 - `/parameter_tuning_scripts/` holds 2 scripts we used to test for different parameters.
 - `/results/parameter_tuning.txt` holds a summary of our parameter tuning process with outputs from the scripts.
+- `DatasetVisualizations.ipynb` is a collection of visualizations of the dataset and concept
 
 Happy flying!!
 
