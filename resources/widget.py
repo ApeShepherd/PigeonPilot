@@ -10,8 +10,8 @@ sync with the bird.
 
 Usage::
 
-    from pigeonpilot.snn import load_run
-    from pigeonpilot.widget import PigeonPlayground
+    from resources.snn import load_run
+    from resources.widget import PigeonPlayground
 
     PigeonPlayground(load_run("latest"))
 

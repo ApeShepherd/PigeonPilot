@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pigeonpilot.drawing import (
+from resources.drawing import (
     merge_heading_blocks,
     polyline_to_segments,
     prepare_drawn_path,
@@ -19,7 +19,7 @@ from pigeonpilot.drawing import (
     simplify_polyline,
     training_band,
 )
-from pigeonpilot.paths import Segment, trajectory_points
+from resources.paths import Segment, trajectory_points
 
 
 def jittery_arc(sigma: float = 0.15, n: int = 200, scale: float = 5.0) -> np.ndarray:
@@ -108,7 +108,7 @@ def test_scale_segments_preserves_headings():
 
 def test_training_band_matches_the_curriculum():
     """Guard rails are measured from the curriculum, not hard-coded."""
-    from pigeonpilot.curriculum import generate_curriculum_dataset
+    from resources.curriculum import generate_curriculum_dataset
 
     band = training_band()
     levels = generate_curriculum_dataset(seed=42)

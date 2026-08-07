@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from pigeonpilot.encoding import (
+from resources.encoding import (
     compass_bin,
     encode_level,
     encode_segments,
@@ -12,7 +12,7 @@ from pigeonpilot.encoding import (
     plan_encoding,
     segment_n_steps,
 )
-from pigeonpilot.paths import Segment, generate_level
+from resources.paths import Segment, generate_level
 
 
 def test_compass_bin_is_world_frame():

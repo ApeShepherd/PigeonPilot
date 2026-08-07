@@ -7,14 +7,14 @@ import json
 import numpy as np
 import pytest
 
-from pigeonpilot.paths import home_heading_bin, trajectory_points
-from pigeonpilot.playground import (
+from resources.paths import home_heading_bin, trajectory_points
+from resources.playground import (
     level_from_segments,
     polyline_to_segments,
     predicted_home_ray,
     resample_polyline,
 )
-from pigeonpilot.snn import bin_to_heading_deg, circular_bin_error, heading_to_unit
+from resources.snn import bin_to_heading_deg, circular_bin_error, heading_to_unit
 
 
 def test_polyline_to_segments_snaps_east():
@@ -75,7 +75,7 @@ def test_resample_polyline_endpoints():
 
 
 def test_list_and_resolve_runs(tmp_path):
-    from pigeonpilot.snn import list_runs, resolve_run_dir, set_latest
+    from resources.snn import list_runs, resolve_run_dir, set_latest
 
     root = tmp_path / "checkpoints"
     run_a = root / "n1000_smoke"

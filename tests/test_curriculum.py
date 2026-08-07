@@ -7,7 +7,7 @@ from collections import Counter, defaultdict
 import numpy as np
 import pytest
 
-from pigeonpilot.curriculum import (
+from resources.curriculum import (
     DEFAULT_EPOCHS_PER_DIFFICULTY,
     DEFAULT_MIXED_EPOCHS_AFTER,
     DIFFICULTY_SPECS,
@@ -23,8 +23,8 @@ from pigeonpilot.curriculum import (
     split_dataset,
     summarize_dataset,
 )
-from pigeonpilot.encoding import encode_level
-from pigeonpilot.paths import (
+from resources.encoding import encode_level
+from resources.paths import (
     DEFAULT_HEADING_BINS,
     DIFFICULTIES,
     STYLES,

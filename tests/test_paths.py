@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pigeonpilot.paths import (
+from resources.paths import (
     DIFFICULTIES,
     STYLES,
     Segment,

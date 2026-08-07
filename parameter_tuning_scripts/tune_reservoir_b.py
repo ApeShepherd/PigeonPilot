@@ -86,9 +86,9 @@ from bindsnet.network.topology import Connection
 from bindsnet.network.monitors import Monitor
 from bindsnet.learning import WeightDependentPostPre
 
-from pigeonpilot.paths import DEFAULT_HEADING_BINS, FULL_CIRCLE_DEG, home_heading_bin
-from pigeonpilot.encoding import encode_level
-from pigeonpilot.curriculum import (
+from resources.paths import DEFAULT_HEADING_BINS, FULL_CIRCLE_DEG, home_heading_bin
+from resources.encoding import encode_level
+from resources.curriculum import (
     generate_curriculum_dataset,
     split_dataset,
     iter_train_schedule,
@@ -686,7 +686,7 @@ def main() -> None:
     print(f"STDP_TC_PRE  = {tc}  (searched, Stage 2)")
     print(f"STDP_TC_POST = {tc}  (searched, Stage 2, tied to STDP_TC_PRE)")
     print(
-        "STDP_EPOCHS_PER_DIFFICULTY / STDP_MIXED_EPOCHS_AFTER = pigeonpilot.curriculum defaults "
+        "STDP_EPOCHS_PER_DIFFICULTY / STDP_MIXED_EPOCHS_AFTER = resources.curriculum defaults "
         "(confirmed in Stage 3, not searched)"
     )
     print(

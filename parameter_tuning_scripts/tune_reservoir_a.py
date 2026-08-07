@@ -71,9 +71,9 @@ from bindsnet.network.nodes import Input, LIFNodes
 from bindsnet.network.topology import Connection
 from bindsnet.network.monitors import Monitor
 
-from pigeonpilot.paths import DEFAULT_HEADING_BINS, FULL_CIRCLE_DEG, home_heading_bin
-from pigeonpilot.encoding import encode_level
-from pigeonpilot.curriculum import generate_curriculum_dataset, split_dataset
+from resources.paths import DEFAULT_HEADING_BINS, FULL_CIRCLE_DEG, home_heading_bin
+from resources.encoding import encode_level
+from resources.curriculum import generate_curriculum_dataset, split_dataset
 
 
 # =============================================================================

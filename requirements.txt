@@ -7,4 +7,4 @@
 # Extra "playground" -> anywidget, ipywidgets  (live draw → predict widget)
 #
 # Playground.ipynb needs the "playground" extra. The legacy Matplotlib
-# playground (pigeonpilot.playground) additionally needs %matplotlib widget.
+# playground (resources.playground) additionally needs %matplotlib widget.

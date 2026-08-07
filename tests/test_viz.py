@@ -9,9 +9,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.quiver import Quiver
 
-from pigeonpilot.curriculum import generate_curriculum_dataset
-from pigeonpilot.paths import generate_level
-from pigeonpilot.viz import (
+from resources.curriculum import generate_curriculum_dataset
+from resources.paths import generate_level
+from resources.viz import (
     compute_xy_limits,
     plot_body_ring_anatomy,
     plot_home_prediction_ring,
@@ -96,8 +96,8 @@ def test_plot_level_encoding_side_by_side():
 
 
 def test_plot_spike_raster_smoke():
-    from pigeonpilot.encoding import encode_segments, plan_encoding
-    from pigeonpilot.paths import Segment
+    from resources.encoding import encode_segments, plan_encoding
+    from resources.paths import Segment
 
     segments = (
         Segment(heading_deg=0.0, distance=3.0),

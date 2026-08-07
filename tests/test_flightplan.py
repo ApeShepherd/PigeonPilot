@@ -11,7 +11,7 @@ import json
 import numpy as np
 import pytest
 
-from pigeonpilot.flightplan import (
+from resources.flightplan import (
     CHANCE_ERROR_DEG,
     MAX_CIRCULAR_SD_DEG,
     _percentile_beaten,
@@ -86,7 +86,7 @@ def test_percentile_beaten_counts_worse_reference_routes():
 def bundle():
     torch = pytest.importorskip("torch")  # noqa: F841
     pytest.importorskip("bindsnet")
-    from pigeonpilot.snn import load_run
+    from resources.snn import load_run
 
     try:
         return load_run("latest")
@@ -96,7 +96,7 @@ def bundle():
 
 @pytest.fixture(scope="module")
 def reference(bundle):
-    from pigeonpilot.flightplan import reference_errors
+    from resources.flightplan import reference_errors
 
     return reference_errors(bundle)
 
@@ -111,7 +111,7 @@ def stroke():
 
 @pytest.fixture(scope="module")
 def plan(bundle, reference, stroke):
-    from pigeonpilot.flightplan import build_flight_plan
+    from resources.flightplan import build_flight_plan
 
     return build_flight_plan(bundle, stroke, reference=reference)
 
@@ -145,7 +145,7 @@ def test_reference_histogram_counts_every_route(reference):
 
 
 def test_reference_is_cached_and_stable(bundle, reference):
-    from pigeonpilot.flightplan import reference_errors
+    from resources.flightplan import reference_errors
 
     again = reference_errors(bundle)
     assert again["models"]["A"]["mean_deg"] == pytest.approx(reference["models"]["A"]["mean_deg"])
@@ -210,7 +210,7 @@ def test_default_plan_carries_no_ensemble(plan):
 
 def test_ensemble_histogram_counts_every_draw(bundle, stroke):
     """Opt-in path: ensemble_size > 0 still yields a consistent seed histogram."""
-    from pigeonpilot.flightplan import build_flight_plan
+    from resources.flightplan import build_flight_plan
 
     opted_in = build_flight_plan(bundle, stroke, ensemble_size=4)
     for model in opted_in["models"]:
@@ -235,6 +235,6 @@ def test_preprocessing_audit_trail_is_present(plan):
 
 
 def test_short_stroke_returns_no_plan(bundle):
-    from pigeonpilot.flightplan import build_flight_plan
+    from resources.flightplan import build_flight_plan
 
     assert build_flight_plan(bundle, [[0.0, 0.0], [0.0001, 0.0]]) is None
